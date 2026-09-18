@@ -36,6 +36,10 @@ copying the direct string and changing only the host produces an
 authentication failure.
 </Callout>
 
+The pooler host is regional and its prefix has changed over time — currently
+`aws-1-<region>.pooler.supabase.com`, previously `aws-0-`. Copy it from the
+dialog rather than constructing it.
+
 Which to use where:
 
 | Use | Connection | Also set |
