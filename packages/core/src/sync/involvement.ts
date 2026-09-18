@@ -52,17 +52,23 @@ export async function recomputeInvolvement(
 
   const prIds = prs.map((pr) => pr.id);
 
-  const [reviews, requests, assignees] = await Promise.all([
-    tx.select().from(pullRequestReviews).where(inArray(pullRequestReviews.pullRequestId, prIds)),
-    tx
-      .select()
-      .from(pullRequestReviewRequests)
-      .where(inArray(pullRequestReviewRequests.pullRequestId, prIds)),
-    tx
-      .select()
-      .from(pullRequestAssignees)
-      .where(inArray(pullRequestAssignees.pullRequestId, prIds)),
-  ]);
+  // Sequential, not Promise.all. A transaction is pinned to a single
+  // connection, so concurrent queries on `tx` cannot actually overlap — node-
+  // postgres serialises them and warns, and pg@9 will reject them outright.
+  // (Concurrency is fine against the pool, where each query gets its own
+  // connection; it is specifically a transaction that cannot.)
+  const reviews = await tx
+    .select()
+    .from(pullRequestReviews)
+    .where(inArray(pullRequestReviews.pullRequestId, prIds));
+  const requests = await tx
+    .select()
+    .from(pullRequestReviewRequests)
+    .where(inArray(pullRequestReviewRequests.pullRequestId, prIds));
+  const assignees = await tx
+    .select()
+    .from(pullRequestAssignees)
+    .where(inArray(pullRequestAssignees.pullRequestId, prIds));
 
   const reviewersByPr = groupLogins(reviews, (r) => r.pullRequestId, (r) => r.reviewerLogin);
   const assigneesByPr = groupLogins(assignees, (a) => a.pullRequestId, (a) => a.login);
