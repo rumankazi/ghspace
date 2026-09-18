@@ -26,6 +26,7 @@ import {
 import type { PullRequestNode } from "../github/pull-request-fields.ts";
 import { log, timed } from "../lib/logger.ts";
 import { recomputeInvolvement } from "./involvement.ts";
+import { failRun } from "./runs.ts";
 
 export const INSTALLATION_SYNC_KIND = "installation_pull_requests";
 
@@ -158,10 +159,9 @@ export async function syncInstallation(
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    await db()
-      .update(syncRuns)
-      .set({ status: "failed", finishedAt: new Date(), error: message })
-      .where(eq(syncRuns.id, syncRunId));
+
+    await failRun(syncRunId, message);
+
     log.error("installation sync failed", {
       installation: installation.accountLogin,
       error: message,

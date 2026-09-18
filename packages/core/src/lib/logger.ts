@@ -1,6 +1,6 @@
 const LEVELS = { debug: 10, info: 20, warn: 30, error: 40 } as const;
 
-export type Level = keyof typeof LEVELS;
+type Level = keyof typeof LEVELS;
 
 /**
  * Reads `LOG_LEVEL` straight from the environment rather than through `env()`.
