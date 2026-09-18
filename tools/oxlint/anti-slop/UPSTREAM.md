@@ -20,19 +20,40 @@ for literal branches", 2026-09-10); `c44ef22` is simply the newest revision
 known to carry this exact content.
 
 `skills-lock.json` records the source repository and a `computedHash`, but no
-commit — hence the pin above. To re-verify this copy, or to check it against a
-future upstream revision:
+commit — hence the pin above.
+
+## Local deviations from that revision
+
+This tree is no longer byte-identical to upstream, deliberately. Rather than a
+single digest — which would only tell you *that* it diverged — the delta is
+enumerable directly against the pristine base:
 
 ```sh
-# in this directory; excludes this record, includes vendor/eslint-stylistic/UPSTREAM.md
-find . -type f ! -name UPSTREAM.md -o -path './vendor/*' -name UPSTREAM.md \
-  | sort | xargs shasum -a 256 | shasum -a 256
-# 69fa217ad6262822167aeaa4b4cf9d10bddbba0bd9fcb7f83e1807f3707bdca3
+diff -rq .claude/skills/install-anti-slop/assets/anti-slop tools/oxlint/anti-slop
 ```
 
-The same digest over `.claude/skills/install-anti-slop/assets/anti-slop` (all 38
-files, no exclusions) must match. If it ever diverges, either this copy has been
-edited locally or the skill has been updated without re-running the install.
+That must print exactly these four lines, and nothing else:
+
+| Difference | Why |
+| --- | --- |
+| `Only in LOCAL: UPSTREAM.md` | this record |
+| `Only in LOCAL/rules: require-visible-to-user.ts` | ghspace-local rule; see its file header |
+| `Only in LOCAL/rules: require-visible-to-user.test.ts` | its CLI test |
+| `index.ts differs` | two added lines importing and registering that rule |
+
+Anything else in that output is unreviewed drift. The base itself must still
+hash to `69fa217ad6262822167aeaa4b4cf9d10bddbba0bd9fcb7f83e1807f3707bdca3`:
+
+```sh
+cd .claude/skills/install-anti-slop/assets/anti-slop \
+  && find . -type f | sort | xargs shasum -a 256 | shasum -a 256
+```
+
+**On update, keep the local rule, its test, and the two `index.ts` lines.**
+`references/update.md` is explicit that local-only rules are owned policy, not
+drift to erase — and this one is the access boundary, so losing it in a merge
+would silently remove the check that keeps one user's dashboard from showing
+another team's private work.
 
 ## The base for the next update
 
@@ -69,11 +90,15 @@ tooling, and a skill update would change enforced rules with no diff to review.
 
 ## Intentional deviations
 
-- No rule tests were copied; the skill assets ship none. Upstream keeps 24
-  `*.test.ts` files under `src/rules/`, outside the asset tree — that is where
-  `vendor/eslint-stylistic/UPSTREAM.md` points when it cites test coverage. Rule
-  behaviour is therefore unverified *here*; check upstream before trusting an
-  edge case.
+- **No upstream rule tests were copied**; the skill assets ship none. Upstream
+  keeps 24 `*.test.ts` files under `src/rules/`, outside the asset tree — that
+  is what `vendor/eslint-stylistic/UPSTREAM.md` means when it cites test
+  coverage. So the 18 upstream rules are unverified *here*: check upstream
+  before trusting an edge case. The one exception is the local
+  `require-visible-to-user`, which has its own CLI test and runs in CI.
+- Severities are split between errors and a ratchet of warnings; the reasoning
+  and the per-rule counts live in `/.oxlintrc.json`. `require-visible-to-user`
+  is an error and must stay one.
 - `tools/oxlint/anti-slop/**` is in `ignorePatterns`: the plugin is vendored
   code and is not linted as ghspace source. It is likewise outside every
   `tsconfig.json`, so `bun run typecheck` does not cover it.
@@ -84,5 +109,7 @@ tooling, and a skill update would change enforced rules with no diff to review.
 
 Follow `.claude/skills/install-anti-slop/references/update.md`. It preserves
 local rule and configuration choices; do not overwrite this directory wholesale.
-Update the commit pin and digest above in the same change, and bump
-`oxlint`/`@oxlint/plugins` together.
+Update the commit pin and the local-deviation table above in the same change,
+and bump `oxlint`/`@oxlint/plugins` together. After merging, re-run
+`bun test tools/oxlint` — it is the only evidence that the access rule still
+does what it claims.
