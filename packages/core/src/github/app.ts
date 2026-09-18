@@ -15,13 +15,13 @@ const AppOctokit = Octokit.plugin(throttling, retry);
  * mount the file contents directly.
  */
 function privateKey(): string {
-  const configured = env().GITHUB_APP_PRIVATE_KEY;
+  const configured = env().GH_APP_PRIVATE_KEY;
   if (configured.includes("-----BEGIN")) return configured;
 
   const decoded = Buffer.from(configured, "base64").toString("utf8");
   if (!decoded.includes("-----BEGIN")) {
     throw new Error(
-      "GITHUB_APP_PRIVATE_KEY is neither a PEM nor base64-encoded PEM. Encode your .pem with: base64 -i app.private-key.pem",
+      "GH_APP_PRIVATE_KEY is neither a PEM nor base64-encoded PEM. Encode your .pem with: base64 -i app.private-key.pem",
     );
   }
   return decoded;
@@ -42,12 +42,12 @@ export function createInstallationClient(
   installationId: number,
   apiBaseUrl?: string,
 ): GitHubClient {
-  const baseUrl = apiBaseUrl ?? env().GITHUB_API_BASE_URL;
+  const baseUrl = apiBaseUrl ?? env().GH_API_BASE_URL;
 
   return new AppOctokit({
     authStrategy: createAppAuth,
     auth: {
-      appId: env().GITHUB_APP_ID,
+      appId: env().GH_APP_ID,
       privateKey: privateKey(),
       installationId,
     },

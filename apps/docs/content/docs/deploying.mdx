@@ -82,11 +82,11 @@ DATABASE_URL=postgres://postgres.PROJECT:PASS@REGION.pooler.supabase.com:6543/po
 DATABASE_POOL_MAX=1
 ENCRYPTION_KEY=          # openssl rand -base64 32
 SESSION_SECRET=          # openssl rand -base64 32
-GITHUB_APP_ID=
-GITHUB_APP_SLUG=
-GITHUB_APP_CLIENT_ID=
-GITHUB_APP_CLIENT_SECRET=
-GITHUB_APP_PRIVATE_KEY=  # base64 of the .pem
+GH_APP_ID=
+GH_APP_SLUG=
+GH_APP_CLIENT_ID=
+GH_APP_CLIENT_SECRET=
+GH_APP_PRIVATE_KEY=  # base64 of the .pem
 APP_BASE_URL=https://your-deployment.vercel.app
 ```
 
@@ -107,9 +107,9 @@ a five-minute schedule.
 
 Add these repository secrets (**Settings → Secrets and variables → Actions**):
 `DATABASE_URL` (**session pooler**, port 5432 — not the direct connection, which
-Actions cannot reach), `ENCRYPTION_KEY`, `GITHUB_APP_ID`,
-`GITHUB_APP_SLUG`, `GITHUB_APP_CLIENT_ID`, `GITHUB_APP_CLIENT_SECRET`,
-`GITHUB_APP_PRIVATE_KEY`.
+Actions cannot reach), `ENCRYPTION_KEY`, `GH_APP_ID`,
+`GH_APP_SLUG`, `GH_APP_CLIENT_ID`, `GH_APP_CLIENT_SECRET`,
+`GH_APP_PRIVATE_KEY`.
 
 <Callout type="warn">
 Scheduled workflows are **best-effort**. Five minutes is the shortest interval

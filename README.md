@@ -102,8 +102,8 @@ requests you want to see.
 cp .env.example .env
 openssl rand -base64 32                             # -> ENCRYPTION_KEY
 openssl rand -base64 32                             # -> SESSION_SECRET
-base64 -i your-app.private-key.pem | tr -d '\n'     # -> GITHUB_APP_PRIVATE_KEY
-# then fill in GITHUB_APP_SLUG / GITHUB_APP_ID / GITHUB_APP_CLIENT_ID / GITHUB_APP_CLIENT_SECRET
+base64 -i your-app.private-key.pem | tr -d '\n'     # -> GH_APP_PRIVATE_KEY
+# then fill in GH_APP_SLUG / GH_APP_ID / GH_APP_CLIENT_ID / GH_APP_CLIENT_SECRET
 ```
 
 **3. Run:**

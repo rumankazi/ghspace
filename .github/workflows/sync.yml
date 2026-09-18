@@ -14,9 +14,13 @@
 #   - Scheduled workflows are disabled automatically after 60 days without any
 #     repository activity.
 #
+# GitHub refuses to store secrets whose names begin with GITHUB_, which is why
+# these carry the GH_ prefix. The application accepts either spelling and
+# prefers GH_.
+#
 # Required repository secrets (Settings → Secrets and variables → Actions):
-#   DATABASE_URL, ENCRYPTION_KEY, GITHUB_APP_ID, GITHUB_APP_SLUG,
-#   GITHUB_APP_CLIENT_ID, GITHUB_APP_CLIENT_SECRET, GITHUB_APP_PRIVATE_KEY
+#   DATABASE_URL, ENCRYPTION_KEY, GH_APP_ID, GH_APP_SLUG,
+#   GH_APP_CLIENT_ID, GH_APP_CLIENT_SECRET, GH_APP_PRIVATE_KEY
 #
 # ENCRYPTION_KEY must be the same value the web app uses, or the stored GitHub
 # tokens cannot be decrypted.
@@ -53,9 +57,9 @@ jobs:
           # has few connections to spare.
           DATABASE_POOL_MAX: "1"
           ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
-          GITHUB_APP_ID: ${{ secrets.GITHUB_APP_ID }}
-          GITHUB_APP_SLUG: ${{ secrets.GITHUB_APP_SLUG }}
-          GITHUB_APP_CLIENT_ID: ${{ secrets.GITHUB_APP_CLIENT_ID }}
-          GITHUB_APP_CLIENT_SECRET: ${{ secrets.GITHUB_APP_CLIENT_SECRET }}
-          GITHUB_APP_PRIVATE_KEY: ${{ secrets.GITHUB_APP_PRIVATE_KEY }}
+          GH_APP_ID: ${{ secrets.GH_APP_ID }}
+          GH_APP_SLUG: ${{ secrets.GH_APP_SLUG }}
+          GH_APP_CLIENT_ID: ${{ secrets.GH_APP_CLIENT_ID }}
+          GH_APP_CLIENT_SECRET: ${{ secrets.GH_APP_CLIENT_SECRET }}
+          GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
         run: bun run src/cli.ts

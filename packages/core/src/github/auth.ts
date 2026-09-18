@@ -46,12 +46,12 @@ function parse(body: unknown): UserTokens {
 }
 
 async function postToken(params: Record<string, string>): Promise<UserTokens> {
-  const response = await fetch(`${env().GITHUB_WEB_BASE_URL}/login/oauth/access_token`, {
+  const response = await fetch(`${env().GH_WEB_BASE_URL}/login/oauth/access_token`, {
     method: "POST",
     headers: { "content-type": "application/json", accept: "application/json" },
     body: JSON.stringify({
-      client_id: env().GITHUB_APP_CLIENT_ID,
-      client_secret: env().GITHUB_APP_CLIENT_SECRET,
+      client_id: env().GH_APP_CLIENT_ID,
+      client_secret: env().GH_APP_CLIENT_SECRET,
       ...params,
     }),
   });
@@ -76,8 +76,8 @@ export function refreshUserTokens(refreshToken: string) {
 }
 
 export function authorizeUrl(state: string, redirectUri: string): string {
-  const url = new URL(`${env().GITHUB_WEB_BASE_URL}/login/oauth/authorize`);
-  url.searchParams.set("client_id", env().GITHUB_APP_CLIENT_ID);
+  const url = new URL(`${env().GH_WEB_BASE_URL}/login/oauth/authorize`);
+  url.searchParams.set("client_id", env().GH_APP_CLIENT_ID);
   url.searchParams.set("redirect_uri", redirectUri);
   url.searchParams.set("state", state);
   return url.toString();

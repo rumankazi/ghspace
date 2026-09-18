@@ -34,7 +34,7 @@ export interface CreateClientOptions {
 
 export function createGitHubClient(options: CreateClientOptions): GitHubClient {
   const { token, userLogin } = options;
-  const baseUrl = options.apiBaseUrl ?? env().GITHUB_API_BASE_URL;
+  const baseUrl = options.apiBaseUrl ?? env().GH_API_BASE_URL;
 
   return new ThrottledOctokit({
     auth: token,

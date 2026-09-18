@@ -31,10 +31,10 @@ installed.
 cp .env.example .env
 openssl rand -base64 32                       # ENCRYPTION_KEY
 openssl rand -base64 32                       # SESSION_SECRET
-base64 -i your-app.private-key.pem | tr -d '\n'   # GITHUB_APP_PRIVATE_KEY
+base64 -i your-app.private-key.pem | tr -d '\n'   # GH_APP_PRIVATE_KEY
 ```
 
-`GITHUB_APP_SLUG` is the last path segment of your app's settings URL.
+`GH_APP_SLUG` is the last path segment of your app's settings URL.
 
 ## 3. Run
 

@@ -38,7 +38,8 @@ export function devLoginEnabled(): boolean {
  * link.
  */
 export function installUrl(): string | null {
-  const slug = process.env.GITHUB_APP_SLUG;
+  // GitHub rejects secret names beginning with GITHUB_, so GH_ is canonical.
+  const slug = process.env.GH_APP_SLUG ?? process.env.GITHUB_APP_SLUG;
   if (!slug || slug === "placeholder") return null;
   return `https://github.com/apps/${slug}/installations/new`;
 }

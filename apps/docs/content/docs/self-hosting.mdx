@@ -99,7 +99,7 @@ restarts and identical across every process. Rotating `ENCRYPTION_KEY`
 invalidates every stored GitHub token and forces all users to re-authorise;
 rotating `SESSION_SECRET` signs everyone out.
 
-**The private key.** `GITHUB_APP_PRIVATE_KEY` accepts a raw PEM or a base64
+**The private key.** `GH_APP_PRIVATE_KEY` accepts a raw PEM or a base64
 encoding of one. Base64 is normal, because `.env` cannot hold a multi-line value
 cleanly:
 
@@ -122,7 +122,7 @@ webhooks as the real answer.
 
 ## Enterprise Server
 
-`GITHUB_API_BASE_URL` and `GITHUB_WEB_BASE_URL` point at public GitHub by
+`GH_API_BASE_URL` and `GH_WEB_BASE_URL` point at public GitHub by
 default and are stored per user, so pointing ghspace at a GitHub Enterprise
 Server instance is configuration rather than a code change.
 

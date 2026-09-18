@@ -82,22 +82,36 @@ for (const [name, label] of [
   }
 }
 
-const appId = env.GITHUB_APP_ID;
-const privateKeyRaw = env.GITHUB_APP_PRIVATE_KEY;
+/**
+ * GitHub refuses repository secrets beginning with `GITHUB_`, so `GH_` is the
+ * canonical prefix. The old spellings are still read, and reported by whichever
+ * name is actually present, so a half-renamed setup is obvious.
+ */
+function read(name: string): { value: string | undefined; usedName: string } {
+  const legacy = `GITHUB_${name}`;
+  const canonical = `GH_${name}`;
+  if (env[canonical]) return { value: env[canonical], usedName: canonical };
+  if (env[legacy]) return { value: env[legacy], usedName: legacy };
+  return { value: undefined, usedName: canonical };
+}
 
-for (const [name, hint] of [
-  ["GITHUB_APP_ID", "the numeric App ID from the app's settings page"],
-  ["GITHUB_APP_SLUG", "the last path segment of github.com/settings/apps/<slug>"],
-  ["GITHUB_APP_CLIENT_ID", "starts with Iv23li…"],
-  ["GITHUB_APP_CLIENT_SECRET", "generated on the app's settings page"],
-  ["GITHUB_APP_PRIVATE_KEY", "base64 of the downloaded .pem"],
+const appId = read("APP_ID").value;
+const privateKeyRaw = read("APP_PRIVATE_KEY").value;
+
+for (const [suffix, hint] of [
+  ["APP_ID", "the numeric App ID from the app's settings page"],
+  ["APP_SLUG", "the last path segment of github.com/settings/apps/<slug>"],
+  ["APP_CLIENT_ID", "starts with Iv23li…"],
+  ["APP_CLIENT_SECRET", "generated on the app's settings page"],
+  ["APP_PRIVATE_KEY", "base64 of the downloaded .pem"],
 ] as const) {
-  const value = env[name];
+  const { value, usedName } = read(suffix);
   if (!value || value === "placeholder") {
-    bad(name, value === "placeholder" ? "still a placeholder" : "not set",
-      `Set ${name} in .env — ${hint}`);
+    bad(`GH_${suffix}`, value === "placeholder" ? "still a placeholder" : "not set",
+      `Set GH_${suffix} — ${hint}`);
   } else {
-    ok(name, name.includes("SECRET") || name.includes("KEY") ? "set" : value);
+    const secret = suffix.includes("SECRET") || suffix.includes("KEY");
+    ok(usedName, secret ? "set" : value);
   }
 }
 
@@ -185,15 +199,16 @@ if (!appId || !privateKey) {
     appOctokit = new Octokit({
       authStrategy: createAppAuth,
       auth: { appId, privateKey },
-      baseUrl: env.GITHUB_API_BASE_URL ?? "https://api.github.com",
+      baseUrl: env.GH_API_BASE_URL ?? env.GITHUB_API_BASE_URL ?? "https://api.github.com",
       userAgent: "ghspace-doctor",
     });
     const app = await appOctokit.request("GET /app");
     ok("credentials", `"${app.data.name}" (id ${app.data.id})`);
 
-    if (env.GITHUB_APP_SLUG && app.data.slug && env.GITHUB_APP_SLUG !== app.data.slug) {
-      warn("GITHUB_APP_SLUG", `.env says "${env.GITHUB_APP_SLUG}", GitHub says "${app.data.slug}"`,
-        `Correct it: GITHUB_APP_SLUG=${app.data.slug}`);
+    const slug = read("APP_SLUG").value;
+    if (slug && app.data.slug && slug !== app.data.slug) {
+      warn("GH_APP_SLUG", `config says "${slug}", GitHub says "${app.data.slug}"`,
+        `Correct it: GH_APP_SLUG=${app.data.slug}`);
     }
 
     // Permissions actually granted, versus what the sync needs.
@@ -212,7 +227,7 @@ if (!appId || !privateKey) {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     bad("credentials", message,
-      "Check GITHUB_APP_ID matches the app, and that the private key is the one you downloaded.");
+      "Check GH_APP_ID matches the app, and that the private key is the one you downloaded.");
   }
 }
 
@@ -226,8 +241,8 @@ if (appOctokit) {
     const list = await appOctokit.request("GET /app/installations", { per_page: 100 });
     if (list.data.length === 0) {
       warn("installed on", "no accounts yet",
-        env.GITHUB_APP_SLUG && env.GITHUB_APP_SLUG !== "placeholder"
-          ? `Install it: https://github.com/apps/${env.GITHUB_APP_SLUG}/installations/new`
+        read("APP_SLUG").value && read("APP_SLUG").value !== "placeholder"
+          ? `Install it: https://github.com/apps/${read("APP_SLUG").value}/installations/new`
           : "Install the app on your account and organisations.");
     } else {
       for (const installation of list.data) {
@@ -244,7 +259,7 @@ if (appOctokit) {
       const installationClient = new Octokit({
         authStrategy: createAppAuth,
         auth: { appId, privateKey, installationId: first.id },
-        baseUrl: env.GITHUB_API_BASE_URL ?? "https://api.github.com",
+        baseUrl: env.GH_API_BASE_URL ?? env.GITHUB_API_BASE_URL ?? "https://api.github.com",
         userAgent: "ghspace-doctor",
       });
 
