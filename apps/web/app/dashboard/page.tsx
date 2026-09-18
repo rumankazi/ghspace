@@ -1,11 +1,13 @@
+import Link from "next/link";
 import { getDashboard, getInstallationCoverage } from "@ghspace/core";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AppNav } from "@/components/app-nav";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { BucketSection } from "@/components/bucket-section";
 import { InstallationCoveragePanel } from "@/components/installation-coverage";
+import { Button } from "@/components/ui/button";
 import { requireUser } from "@/lib/current-user";
-import { installUrl } from "@/lib/env";
+import { installConfigured } from "@/lib/env";
 import { refreshNow } from "./actions";
 
 // Reads a per-user snapshot behind a cookie, so there is nothing to cache.
@@ -52,7 +54,7 @@ export default async function DashboardPage() {
       )}
 
       <div className="mt-8">
-        <InstallationCoveragePanel coverage={coverage} installUrl={installUrl()} />
+        <InstallationCoveragePanel coverage={coverage} canInstall={installConfigured()} />
       </div>
     </div>
   );
@@ -64,17 +66,24 @@ function EmptyState({ synced, hasCoverage }: { synced: boolean; hasCoverage: boo
   if (!hasCoverage) {
     return (
       <Empty
-        title="ghspace is not installed anywhere yet"
-        body="Pull requests only appear for accounts where the app is installed. Install it on your own account and on the organizations you work in, using the panel below."
-      />
+        title="ghspace cannot see any repositories yet"
+        body="It is a GitHub App, so it only sees accounts it has been installed on. Choose your own account and the organizations you work in, and their pull requests will show up here."
+      >
+        {/* Deliberately a link rather than a redirect on render: someone who
+            chose "continue without installing" must not be bounced straight
+            back to the step they declined. */}
+        <Button asChild className="mt-5">
+          <Link href="/setup">Choose what ghspace can see</Link>
+        </Button>
+      </Empty>
     );
   }
 
   if (!synced) {
     return (
       <Empty
-        title="No data yet"
-        body="The first sync has not run yet. Start the worker, or use Refresh above."
+        title="The first sync has not finished yet"
+        body="ghspace is collecting pull requests from the accounts you connected. This usually takes a moment — use Refresh above to run it now."
       />
     );
   }
@@ -87,11 +96,20 @@ function EmptyState({ synced, hasCoverage }: { synced: boolean; hasCoverage: boo
   );
 }
 
-function Empty({ title, body }: { title: string; body: string }) {
+function Empty({
+  title,
+  body,
+  children,
+}: {
+  title: string;
+  body: string;
+  children?: React.ReactNode;
+}) {
   return (
     <div className="border-border text-muted-foreground rounded-lg border border-dashed px-6 py-16 text-center">
       <p className="text-foreground text-sm font-medium">{title}</p>
       <p className="mx-auto mt-1 max-w-md text-sm">{body}</p>
+      {children}
     </div>
   );
 }
