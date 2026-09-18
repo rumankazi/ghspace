@@ -1,0 +1,133 @@
+---
+title: Code Health
+description: Two analysers, one lint rule that guards the access boundary, and the debt ledger between them.
+---
+
+Two static analysers run in CI, and they are not redundant: they see different
+things.
+
+| Tool | Sees | Catches |
+| --- | --- | --- |
+| Oxlint + [anti-slop](https://github.com/dmmulroy/anti-slop) | one file at a time | unjustified assertions, `unknown` in signatures, `Record<string, T>` standing in for a real shape |
+| [fallow](https://docs.fallow.tools) | the whole module graph | exports nothing imports, dependencies nothing requires, cycles, duplication |
+
+A per-file linter cannot know whether anything imports an export. A graph
+analyser cannot judge whether a type assertion is justified. Running one and
+calling it covered would be the kind of silent gap this repository tries to
+avoid elsewhere.
+
+## The rule that matters
+
+Most lint findings are style. One is not.
+
+`anti-slop/require-visible-to-user` reports any Drizzle read naming
+`pullRequests` as a source when the enclosing function never composes
+`visibleToUser(userId)`. See [Access model](/docs/access-model) for why that
+predicate is load-bearing: pull requests are cached with an installation token
+that can read every repository in the account, so the predicate is the only
+thing separating one user's dashboard from another team's private work.
+
+**There is no test that would catch a missing predicate.** A leak looks exactly
+like a correct result unless you already know whose data you are reading. That
+is precisely why it is a lint rule and not a test — and why it is the one rule
+that must never be downgraded to a warning or silenced with a disable comment.
+
+The rule is scoped to the enclosing *function*, not the individual `.where()`
+call, because `getPullRequests` legitimately builds a `conditions` array and
+applies it several statements later. A narrower rule would have to either flag
+that or be defeated by it.
+
+Writes are not matched — `.insert`, `.update` and `.delete` name their table
+through a different method, and the sync owns them. A read that genuinely must
+not be user-scoped needs an `ACCESS:` comment saying why. There is exactly one
+today, in `recomputeInvolvement`, which runs before any viewer exists and must
+see every user's pull requests at once.
+
+The rule lives in `tools/oxlint/anti-slop/rules/require-visible-to-user.ts` and
+is a local addition to the vendored rule set, not an upstream rule. It has its
+own test, which drives the real Oxlint CLI against a fixture — see `UPSTREAM.md`
+beside it before pulling a newer upstream revision, because a careless merge
+would drop it.
+
+## The ratchet
+
+Adopting anti-slop surfaced 346 findings. 284 were spacing and were autofixed.
+The remaining 62 are judgement calls, and they are handled as a ratchet rather
+than a rewrite:
+
+- **Twelve rules are errors** — clean today, so a new violation fails the build.
+  `require-visible-to-user` is one of them.
+- **Eight rules are warnings**, with their current counts recorded beside each
+  entry in `.oxlintrc.json`.
+
+<Callout type="warn">
+While a rule sits in the ratchet, a **new** violation of it only warns too.
+That is the price of enforcing the clean rules now instead of waiting on a
+47-file change. The per-rule counts in `.oxlintrc.json` are the ledger; each
+rule moves to `error` as its count reaches zero.
+</Callout>
+
+That cost is not theoretical. Extracting `failRun` during this work would have
+taken an `unknown` parameter — correct for a `catch` binding, but a fresh
+violation of a ratcheted rule. The helper takes the narrowed message instead,
+and the caller does the narrowing at its own boundary.
+
+## Scope
+
+Fallow analyses only code ghspace owns. The vendored Oxlint plugin under
+`tools/oxlint/anti-slop` is third-party code tracked against an upstream
+revision, and on the first run it dominated every report — most complexity
+hotspots and four of five clone groups. Acting on any of it would have meant
+editing files we do not own, so `.fallowrc.json` ignores that tree along with
+`.claude/` and generated output.
+
+That ignore has a consequence worth knowing: `@oxlint/plugins` then looks like
+an unused dependency, because its only importer is the tree fallow no longer
+reads. It is listed under `ignoreDependencies` with a note rather than removed.
+
+## The map
+
+<Callout>
+[**Open the interactive codebase map →**](/fallow-map.html)
+</Callout>
+
+`fallow viz` renders the module graph as a self-contained HTML page: files,
+imports, clusters, and any findings attached to them. It is generated during
+the docs build, so it always describes the commit this site was deployed from,
+and it is never committed — a 580&nbsp;KB artefact would be stale the moment
+anything changed.
+
+## Running it yourself
+
+```bash
+bun run lint        # oxlint + anti-slop; exits non-zero on errors only
+bun run lint:fix    # applies the autofixable findings
+bun run deadcode    # unused files, exports, dependencies, cycles
+bun run dupes       # copy-paste detection
+bun run health      # complexity and churn; advisory, see below
+bun run map         # regenerate the interactive map
+bun run badge       # regenerate the README health badge
+```
+
+`fallow health` is deliberately **not** a CI gate. It exits non-zero for any
+file over its threshold, and on a history this young the churn signal is mostly
+noise — it flags dozens of files while scoring the repository in the high
+eighties. Blocking on that would train everyone to ignore it. CI runs it and
+drops the exit code on purpose; dead code and duplication do gate.
+
+<Callout type="warn">
+Fallow caches its analysis in `.fallow/`. A warm cache can hold resolutions from
+an earlier build, which is how a clean-checkout failure in CI can refuse to
+reproduce locally. Delete `.fallow/` when a fallow result looks impossible.
+</Callout>
+
+## Things this does not cover
+
+- The upstream anti-slop rules have **no tests here**. Upstream keeps them
+  outside the tree the installer copies. Only the local access rule is tested.
+- Sixty-two anti-slop findings remain unfixed, all judgement calls in `sync/`,
+  `db/`, `github/` and `web/`.
+- `fallow health`'s findings are unaddressed by design, per above.
+- Neither tool audits the third-party rule code it runs. The vendored plugin is
+  pinned by hash to a verified upstream commit; that proves provenance, not
+  correctness.

@@ -21,9 +21,11 @@
     "dev:worker": "bun run --filter @ghspace/worker dev",
     "doctor": "bun run --env-file=.env scripts/doctor.ts",
     "dupes": "fallow dupes --fail-on-issues",
+    "badge": "fallow health --format badge > .github/badges/fallow-health.svg",
     "health": "fallow health",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
+    "map": "bun run --filter @ghspace/docs map",
     "seed": "bun run --filter @ghspace/core seed",
     "typecheck": "bun run --filter '*' typecheck"
   },

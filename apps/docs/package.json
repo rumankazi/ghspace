@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "fumadocs-mdx && next dev -p 3001",
-    "build": "fumadocs-mdx && next build",
+    "build": "fumadocs-mdx && bun run map && next build",
+    "map": "fallow viz --no-open --root=../.. --out public/fallow-map.html",
     "start": "next start -p 3001",
     "typecheck": "fumadocs-mdx && tsc --noEmit"
   },
