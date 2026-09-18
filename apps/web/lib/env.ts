@@ -22,6 +22,17 @@ export function appBaseUrl(): string {
 export const isProduction = process.env.NODE_ENV === "production";
 
 /**
+ * Whether the seeded development sign-in is available.
+ *
+ * Two independent conditions, on purpose: an explicit opt-in flag *and* a
+ * non-production build. Either one alone would be a single misconfiguration
+ * away from an unauthenticated sign-in endpoint on a real deployment.
+ */
+export function devLoginEnabled(): boolean {
+  return process.env.ALLOW_DEV_LOGIN === "1" && !isProduction;
+}
+
+/**
  * Where a user goes to install the app on another account. Null until the app
  * slug is configured, so the UI can hide the control rather than offer a broken
  * link.

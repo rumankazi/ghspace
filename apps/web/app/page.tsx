@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { GitHubMark } from "@/components/github-mark";
+import { devLoginEnabled } from "@/lib/env";
 import { getSessionUserId } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -36,6 +37,17 @@ export default async function Home({
           Continue with GitHub
         </a>
       </Button>
+
+      {devLoginEnabled() ? (
+        <form action="/api/auth/dev-login" method="post">
+          <Button type="submit" variant="outline" size="sm" className="w-full">
+            Sign in with seeded data
+          </Button>
+          <p className="text-muted-foreground mt-2 text-xs">
+            Development only. Populate it with <code>bun run seed</code>.
+          </p>
+        </form>
+      ) : null}
 
       <p className="text-muted-foreground text-xs leading-relaxed">
         After signing in you will be asked to install ghspace on your account and on the

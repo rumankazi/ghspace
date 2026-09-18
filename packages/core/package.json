@@ -14,7 +14,8 @@
     "db:migrate": "bun run --env-file=../../.env src/db/migrate.ts",
     "db:studio": "bunx --env-file=../../.env drizzle-kit studio",
     "typecheck": "tsc --noEmit",
-    "test": "bun test"
+    "test": "bun test",
+    "seed": "bun run --env-file=../../.env src/db/seed.ts"
   },
   "dependencies": {
     "@octokit/auth-app": "^8.3.1",

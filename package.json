@@ -18,6 +18,7 @@
     "dev:docs": "bun run --filter @ghspace/docs dev",
     "dev:web": "bun run --filter @ghspace/web dev",
     "dev:worker": "bun run --filter @ghspace/worker dev",
+    "seed": "bun run --filter @ghspace/core seed",
     "typecheck": "bun run --filter '*' typecheck"
   },
   "devDependencies": {
