@@ -17,28 +17,50 @@
 		"**/.source/**"
 	],
 	"jsPlugins": [
+		// Always the vendored copy under tools/, never the skill copy under
+		// .claude/. Pointing lint at the skill would make what CI rejects follow
+		// agent tooling, so updating a skill would change enforced policy with no
+		// diff to review.
 		{ "name": "anti-slop", "specifier": "./tools/oxlint/anti-slop/index.ts" }
 	],
 	"rules": {
+		// ---------------------------------------------------------------------
+		// Errors: clean today, so anything new here is a regression and CI fails.
+		// ---------------------------------------------------------------------
+
+		// The access boundary. Never downgrade this one — see CLAUDE.md, and
+		// tools/oxlint/anti-slop/rules/require-visible-to-user.ts.
+		"anti-slop/require-visible-to-user": "error",
+
 		"oxc/no-accumulating-spread": "error",
-		"anti-slop/no-array-filter-map": "error",
-		"anti-slop/no-reduce-accumulator-copy": "error",
-		"anti-slop/no-chained-type-assertions": "error",
-		"anti-slop/no-conditional-empty-object-spread": "error",
-		"anti-slop/no-known-value-widening": "error",
 		"anti-slop/no-module-mocking": "error",
 		"anti-slop/no-object-parameters": "error",
+		"anti-slop/no-reduce-accumulator-copy": "error",
 		"anti-slop/no-reflect-apply": "error",
 		"anti-slop/no-reflect-get": "error",
-		"anti-slop/no-runtime-typeof": "error",
 		"anti-slop/no-shape-in-symbol-names": "error",
-		"anti-slop/no-unknown-parameters": "error",
 		"anti-slop/no-unknown-returns": "error",
 		"anti-slop/no-unknown-type-aliases": "error",
-		"anti-slop/no-unsafe-dictionary-type": "error",
 		"anti-slop/no-widen-then-assert": "error",
 		"anti-slop/require-readable-spacing": "error",
-		"anti-slop/require-safety-comment-for-type-assertion": "error",
-		"anti-slop/require-visible-to-user": "error"
+
+		// ---------------------------------------------------------------------
+		// Ratchet: 62 pre-existing findings we have not worked through yet.
+		//
+		// These are warnings so that CI can start enforcing the rules above
+		// today rather than waiting on a 47-file rewrite. The cost is real and
+		// worth stating plainly: while a rule sits here, a NEW violation of it
+		// also only warns. Each one moves to "error" as its count reaches zero,
+		// and the counts below are the ledger — update them when you fix some.
+		// ---------------------------------------------------------------------
+
+		"anti-slop/require-safety-comment-for-type-assertion": "warn", // 25
+		"anti-slop/no-unsafe-dictionary-type": "warn", // 16
+		"anti-slop/no-unknown-parameters": "warn", // 7
+		"anti-slop/no-known-value-widening": "warn", // 6
+		"anti-slop/no-runtime-typeof": "warn", // 5
+		"anti-slop/no-array-filter-map": "warn", // 1
+		"anti-slop/no-chained-type-assertions": "warn", // 1
+		"anti-slop/no-conditional-empty-object-spread": "warn" // 1
 	}
 }

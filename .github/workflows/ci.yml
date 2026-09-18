@@ -37,6 +37,36 @@ jobs:
       - name: Build
         run: bun run build
 
+  # Lint is a separate job from `check` so a style finding and a broken build
+  # are distinguishable at a glance, and so a slow typecheck does not delay the
+  # fastest signal. Oxlint needs no database and no credentials either.
+  #
+  # `bun run lint` exits non-zero on errors only. Rules with pre-existing
+  # findings are warnings for now (see the ratchet in .oxlintrc.json), so this
+  # job guards the rules that are already clean — including
+  # anti-slop/require-visible-to-user, the per-user access boundary.
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3"
+
+      - run: bun install --frozen-lockfile
+
+      - name: Lint
+        run: bun run lint
+
+      # The access rule is the one lint rule whose failure would be a data leak
+      # rather than a style regression, so its own behaviour is tested rather
+      # than assumed. It drives the real Oxlint CLI over a fixture, which is why
+      # it does not run under `bun test` in packages/core.
+      - name: Test lint rules
+        run: bun test tools/oxlint
+
   # Catches the failure mode where the schema and the generated SQL drift apart:
   # a changed schema.ts without a matching `bun run db:generate` would apply
   # cleanly in development and then fail on a fresh database.
