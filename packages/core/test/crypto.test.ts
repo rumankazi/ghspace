@@ -6,6 +6,7 @@ import { randomBytes } from "node:crypto";
 process.env.ENCRYPTION_KEY = randomBytes(32).toString("base64");
 
 let encrypt: (s: string) => Buffer;
+
 let decrypt: (b: Buffer) => string;
 
 beforeAll(async () => {
@@ -42,6 +43,7 @@ describe("token encryption", () => {
 describe("encryption key validation", () => {
   test("rejects a key that is not 32 bytes", async () => {
     const original = process.env.ENCRYPTION_KEY;
+
     try {
       process.env.ENCRYPTION_KEY = randomBytes(16).toString("base64");
       // A fresh import is required: the key is cached after first use.
@@ -54,6 +56,7 @@ describe("encryption key validation", () => {
 
   test("reports a missing key clearly rather than failing deep in node:crypto", async () => {
     const original = process.env.ENCRYPTION_KEY;
+
     try {
       delete process.env.ENCRYPTION_KEY;
       const fresh = await import(`../src/lib/crypto.ts?absent-key`);

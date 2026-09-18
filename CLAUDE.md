@@ -54,6 +54,13 @@ installation token that can read every repository in the account; that
 predicate is the only thing keeping one user's dashboard from showing another
 team's private work.
 
+`anti-slop/require-visible-to-user` enforces this, so a forgotten predicate
+fails CI rather than merging quietly — there is no test that would catch it,
+because a leak looks exactly like a correct result unless you know whose data
+you are reading. A read that genuinely must not be user-scoped needs an
+`ACCESS:` comment saying why; `recomputeInvolvement` is the only one today.
+Never silence the rule with a disable comment.
+
 ## Portability
 
 ghspace uses the Postgres **connection string and nothing else**. No

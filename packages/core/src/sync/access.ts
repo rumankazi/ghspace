@@ -11,6 +11,7 @@ import { createGitHubClient } from "../github/client.ts";
 import { fetchUserInstallations } from "../github/installations.ts";
 import { listAccessibleRepositories } from "../github/user-repos.ts";
 import { log, timed } from "../lib/logger.ts";
+import { failRun } from "./runs.ts";
 import { getUserWithApiBase, getValidAccessToken } from "./tokens.ts";
 
 export const ACCESS_SYNC_KIND = "user_access";
@@ -45,10 +46,12 @@ export async function syncUserAccess(userId: string): Promise<AccessSyncOutcome>
     .insert(syncRuns)
     .values({ userId, kind: ACCESS_SYNC_KIND, status: "running", startedAt: seenAt })
     .returning({ id: syncRuns.id });
+
   const syncRunId = run!.id;
 
   try {
     const token = await getValidAccessToken(userId);
+
     const client = createGitHubClient({
       token,
       apiBaseUrl: user.apiBaseUrl,
@@ -58,6 +61,7 @@ export async function syncUserAccess(userId: string): Promise<AccessSyncOutcome>
     const found = await timed("listing installations", { login: user.githubLogin }, () =>
       fetchUserInstallations(client),
     );
+
     let repositoryCount = 0;
 
     for (const [index, entry] of found.entries()) {
@@ -66,6 +70,7 @@ export async function syncUserAccess(userId: string): Promise<AccessSyncOutcome>
         { account: entry.accountLogin, installation: `${index + 1}/${found.length}` },
         () => listAccessibleRepositories(client, entry.githubInstallationId),
       );
+
       repositoryCount += accessible.length;
 
       await db().transaction(async (tx) => {
@@ -182,10 +187,9 @@ export async function syncUserAccess(userId: string): Promise<AccessSyncOutcome>
     return { installationCount: found.length, repositoryCount };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    await db()
-      .update(syncRuns)
-      .set({ status: "failed", finishedAt: new Date(), error: message })
-      .where(eq(syncRuns.id, syncRunId));
+
+    await failRun(syncRunId, message);
+
     log.error("user access sync failed", { userId, error: message });
     throw error;
   }

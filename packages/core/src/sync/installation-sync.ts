@@ -26,6 +26,7 @@ import {
 import type { PullRequestNode } from "../github/pull-request-fields.ts";
 import { log, timed } from "../lib/logger.ts";
 import { recomputeInvolvement } from "./involvement.ts";
+import { failRun } from "./runs.ts";
 
 export const INSTALLATION_SYNC_KIND = "installation_pull_requests";
 
@@ -74,6 +75,7 @@ export async function syncInstallation(
     .from(installations)
     .where(eq(installations.id, installationRowId))
     .limit(1);
+
   if (!installation) throw new Error(`No installation ${installationRowId}`);
 
   const [run] = await db()
@@ -85,6 +87,7 @@ export async function syncInstallation(
       startedAt,
     })
     .returning({ id: syncRuns.id });
+
   const syncRunId = run!.id;
 
   try {
@@ -100,6 +103,7 @@ export async function syncInstallation(
     const repos = await timed("listing repositories", { account }, () =>
       listInstallationRepositories(client),
     );
+
     const active = repos.filter((repo) => !repo.isArchived);
     log.info("repositories to scan", {
       account,
@@ -155,10 +159,9 @@ export async function syncInstallation(
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    await db()
-      .update(syncRuns)
-      .set({ status: "failed", finishedAt: new Date(), error: message })
-      .where(eq(syncRuns.id, syncRunId));
+
+    await failRun(syncRunId, message);
+
     log.error("installation sync failed", {
       installation: installation.accountLogin,
       error: message,
@@ -183,6 +186,7 @@ async function writeSnapshot(
   return db().transaction(async (tx) => {
     // --- repositories -----------------------------------------------------
     const repoIdByNodeId = new Map<string, string>();
+
     if (repos.length > 0) {
       const rows = await tx
         .insert(repositories)
@@ -213,6 +217,7 @@ async function writeSnapshot(
           },
         })
         .returning({ id: repositories.id, nodeId: repositories.nodeId });
+
       for (const row of rows) repoIdByNodeId.set(row.nodeId, row.id);
     }
 
@@ -229,12 +234,15 @@ async function writeSnapshot(
       );
 
     const ownedRepoIds = [...repoIdByNodeId.values()];
+
     if (ownedRepoIds.length === 0) return 0;
 
     // --- pull requests ----------------------------------------------------
     const prIdByNodeId = new Map<string, string>();
+
     if (nodes.length > 0) {
       const deduped = new Map<string, PullRequestNode>();
+
       for (const node of nodes) deduped.set(node.id, node);
 
       const values = [...deduped.values()]
@@ -267,6 +275,7 @@ async function writeSnapshot(
         }));
 
       const CHUNK = 250;
+
       for (let i = 0; i < values.length; i += CHUNK) {
         const rows = await tx
           .insert(pullRequests)
@@ -295,6 +304,7 @@ async function writeSnapshot(
             },
           })
           .returning({ id: pullRequests.id, nodeId: pullRequests.nodeId });
+
         for (const row of rows) prIdByNodeId.set(row.nodeId, row.id);
       }
     }
@@ -325,6 +335,7 @@ async function writeSnapshot(
         .where(inArray(pullRequestAssignees.pullRequestId, prIds));
 
       const seen = new Map<string, PullRequestNode>();
+
       for (const node of nodes) seen.set(node.id, node);
       const present = [...seen.values()].filter((node) => prIdByNodeId.has(node.id));
 
@@ -343,7 +354,9 @@ async function writeSnapshot(
         (node.reviewRequests?.nodes ?? []).flatMap((request) => {
           const reviewer = request.requestedReviewer;
           const login = reviewer?.login ?? reviewer?.slug;
+
           if (!reviewer || !login) return [];
+
           return [
             {
               pullRequestId: prIdByNodeId.get(node.id)!,
@@ -368,9 +381,11 @@ async function writeSnapshot(
       for (const chunk of chunks(reviewRows)) {
         await tx.insert(pullRequestReviews).values(chunk).onConflictDoNothing();
       }
+
       for (const chunk of chunks(requestRows)) {
         await tx.insert(pullRequestReviewRequests).values(chunk).onConflictDoNothing();
       }
+
       for (const chunk of chunks(assigneeRows)) {
         await tx.insert(pullRequestAssignees).values(chunk).onConflictDoNothing();
       }
@@ -420,6 +435,7 @@ const INSERT_CHUNK = 500;
 function* chunks<T>(rows: T[]): Generator<T[]> {
   for (let i = 0; i < rows.length; i += INSERT_CHUNK) {
     const slice = rows.slice(i, i + INSERT_CHUNK);
+
     if (slice.length > 0) yield slice;
   }
 }

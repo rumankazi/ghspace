@@ -19,6 +19,7 @@ export async function GET() {
 
   if (!url) {
     const reason = "This deployment has no GH_APP_SLUG configured, so ghspace cannot build an install link.";
+
     return NextResponse.redirect(`${appBaseUrl()}/setup?error=${encodeURIComponent(reason)}`);
   }
 

@@ -34,7 +34,29 @@ export async function reapInterruptedRuns(): Promise<number> {
   if (reaped.length > 0) {
     log.warn("marked interrupted sync runs as failed", { count: reaped.length });
   }
+
   return reaped.length;
+}
+
+/**
+ * Records a run that threw.
+ *
+ * Every sync entry point needs this in its `catch`, and the row must be written
+ * before the error is rethrown — otherwise the failure propagates while the row
+ * stays "running", and only the staleness sweep above corrects it half an hour
+ * later.
+ *
+ * Takes the message rather than the error: narrowing a `catch` binding is the
+ * caller's boundary, and doing it here would mean an `unknown` parameter. The
+ * caller needs the string for its own log line anyway, and each logs a
+ * different set of identifying fields, so a shared log call here would have to
+ * either drop them or take a bag of optional ones.
+ */
+export async function failRun(syncRunId: string, message: string): Promise<void> {
+  await db()
+    .update(syncRuns)
+    .set({ status: "failed", finishedAt: new Date(), error: message })
+    .where(eq(syncRuns.id, syncRunId));
 }
 
 /**

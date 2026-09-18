@@ -11,7 +11,9 @@ const migrationsFolder = join(dirname(fileURLToPath(import.meta.url)), "../../dr
 function redact(url: string): string {
   try {
     const parsed = new URL(url);
+
     if (parsed.password) parsed.password = "***";
+
     return parsed.toString();
   } catch {
     return "(unparseable DATABASE_URL)";

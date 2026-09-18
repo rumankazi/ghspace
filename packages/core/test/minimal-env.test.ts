@@ -15,6 +15,7 @@ async function withEnv<T>(env: Record<string, string>, work: () => Promise<T>): 
   // A fresh object rather than deletions: anything left behind would let a
   // module pass here and still fail on a bare CI runner.
   process.env = { ...env } as NodeJS.ProcessEnv;
+
   try {
     return await work();
   } finally {

@@ -68,14 +68,17 @@ export function classify(input: BucketInput): TriageBucket {
     // Reviewer pushed back, CI is red, or the branch no longer merges: the ball
     // is unambiguously in the author's court.
     if (input.reviewDecision === "CHANGES_REQUESTED") return "needs_your_action";
+
     if (input.checksState === "FAILURE" || input.checksState === "ERROR") {
       return "needs_your_action";
     }
+
     if (input.mergeable === "CONFLICTING") return "needs_your_action";
 
     // Approved and green. `checksState === null` counts as passing because a
     // repo with no CI configured would otherwise never reach this bucket.
     const checksPassing = input.checksState === "SUCCESS" || input.checksState === null;
+
     if (input.reviewDecision === "APPROVED" && checksPassing && input.mergeable !== "UNKNOWN") {
       return "ready_to_merge";
     }

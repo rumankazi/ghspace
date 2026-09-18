@@ -55,10 +55,12 @@ export async function fetchUserInstallations(
   const parsed = installationsResponse.parse(raw.data);
 
   const results: UserInstallation[] = [];
+
   for (const entry of parsed.installations) {
     // Organization accounts expose `login`; some account shapes only carry
     // `slug`. Skipping a nameless installation is better than rendering "null".
     const login = entry.account?.login ?? entry.account?.slug;
+
     if (!login) continue;
 
     results.push({
@@ -72,6 +74,7 @@ export async function fetchUserInstallations(
       repositoryCount: await countRepositories(client, entry.id),
     });
   }
+
   return results;
 }
 
@@ -91,6 +94,7 @@ async function countRepositories(
       installation_id: installationId,
       per_page: 1,
     });
+
     return repositoriesResponse.parse(raw.data).total_count;
   } catch {
     // A suspended installation returns 403 here. The installation itself is

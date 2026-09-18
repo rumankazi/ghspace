@@ -61,6 +61,7 @@ export function createGitHubClient(options: CreateClientOptions): GitHubClient {
           retryCount,
           userLogin,
         });
+
         return retryCount < 2;
       },
       /**
@@ -80,6 +81,7 @@ export function createGitHubClient(options: CreateClientOptions): GitHubClient {
           retryCount,
           userLogin,
         });
+
         return retryCount < 3;
       },
     },
@@ -90,7 +92,9 @@ export function createGitHubClient(options: CreateClientOptions): GitHubClient {
 export function toRateLimitSnapshot(raw: unknown): RateLimitSnapshot | undefined {
   if (!raw || typeof raw !== "object") return undefined;
   const r = raw as Record<string, unknown>;
+
   if (typeof r.resetAt !== "string") return undefined;
+
   return {
     cost: Number(r.cost ?? 0),
     remaining: Number(r.remaining ?? 0),
@@ -136,6 +140,7 @@ export async function graphqlAllowingPartial<T>(
     // dependency tree would break an identity check, silently turning partial
     // responses back into hard failures.
     const candidate = error as PartialGraphqlError;
+
     if (
       candidate?.name !== "GraphqlResponseError" ||
       candidate.data === undefined ||
@@ -151,6 +156,7 @@ export async function graphqlAllowingPartial<T>(
         (e.path ?? []).filter((part) => typeof part === "string").join("."),
       ),
     );
+
     log.warn("graphql returned partial data; using it", {
       ...context,
       errorCount: candidate.errors?.length ?? 0,

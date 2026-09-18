@@ -172,6 +172,7 @@ describe("classify", () => {
 
   test("every reachable bucket is present in the display order", () => {
     expect(new Set(BUCKET_ORDER).size).toBe(BUCKET_ORDER.length);
+
     const reachable = new Set([
       classify(input({ isReviewRequested: true })),
       classify(input({ isAuthor: true, isDraft: true })),
@@ -181,6 +182,7 @@ describe("classify", () => {
       classify(input({ isRepositoryOwner: true, authorIsBot: true })),
       classify(input()),
     ]);
+
     for (const bucket of reachable) expect(BUCKET_ORDER).toContain(bucket);
     expect(reachable.size).toBe(BUCKET_ORDER.length);
   });

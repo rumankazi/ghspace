@@ -19,6 +19,7 @@ export async function issueState(): Promise<string> {
     path: "/",
     maxAge: 10 * 60,
   });
+
   return state;
 }
 
@@ -30,5 +31,6 @@ export async function consumeState(received: string | null): Promise<boolean> {
   if (!expected || !received) return false;
   const a = Buffer.from(expected);
   const b = Buffer.from(received);
+
   return a.length === b.length && timingSafeEqual(a, b);
 }

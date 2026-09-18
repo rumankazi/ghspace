@@ -72,6 +72,7 @@ const startedAt = Date.now();
 // Access first: involvement can only be derived for users whose repository
 // access is already known.
 log.info("step 1 of 2: refreshing repository access", { users: targets.length });
+
 for (const [index, target] of targets.entries()) {
   if (interrupted) break;
   log.info("syncing access", {
@@ -89,6 +90,7 @@ if (!interrupted) {
   });
 
   let pullRequests = 0;
+
   for (const [index, installation] of installations.entries()) {
     if (interrupted) break;
     log.info("syncing installation", {
@@ -114,4 +116,5 @@ if (interrupted) {
 }
 
 await closeDb();
+
 process.exit(interrupted ? 130 : 0);

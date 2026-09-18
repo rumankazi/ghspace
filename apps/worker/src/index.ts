@@ -26,7 +26,9 @@ import {
  */
 
 let shuttingDown = false;
+
 let pullRequestCycleInFlight = false;
+
 let accessCycleInFlight = false;
 
 /** Access is re-checked every Nth pull request cycle. */
@@ -35,15 +37,19 @@ const ACCESS_EVERY_N_CYCLES = 10;
 async function syncAllInstallations(): Promise<void> {
   if (pullRequestCycleInFlight) {
     log.warn("skipping sync cycle: previous cycle still running");
+
     return;
   }
+
   pullRequestCycleInFlight = true;
   const startedAt = Date.now();
 
   try {
     const targets = await listInstallationsForSync();
+
     if (targets.length === 0) {
       log.info("no installations registered yet; nothing to sync");
+
       return;
     }
 
@@ -55,6 +61,7 @@ async function syncAllInstallations(): Promise<void> {
     // load on both GitHub and Postgres predictable.
     for (const target of targets) {
       if (shuttingDown) break;
+
       try {
         await syncInstallation(target.id);
         succeeded++;
@@ -95,6 +102,7 @@ async function syncAllUserAccess(): Promise<void> {
 
     for (const user of everyone) {
       if (shuttingDown) break;
+
       try {
         await syncUserAccess(user.id);
       } catch (error) {
@@ -136,15 +144,19 @@ async function main(): Promise<void> {
   await syncAllInstallations();
 
   let cycle = 0;
+
   while (!shuttingDown) {
     // A little jitter so that several self-hosted instances, or a restart loop,
     // do not line up and hit GitHub in lockstep.
     const jitter = Math.floor(Math.random() * intervalMs * 0.1);
     await sleep(intervalMs + jitter);
+
     if (shuttingDown) break;
 
     cycle++;
+
     if (cycle % ACCESS_EVERY_N_CYCLES === 0) await syncAllUserAccess();
+
     if (shuttingDown) break;
     await syncAllInstallations();
   }
@@ -172,6 +184,7 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
     if (shuttingDown) process.exit(1);
     log.info("shutdown signal received; finishing current work", { signal });
     shuttingDown = true;
+
     while (shutdownWaiters.length > 0) shutdownWaiters.pop()?.();
   });
 }

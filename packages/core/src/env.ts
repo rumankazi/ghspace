@@ -24,9 +24,11 @@ function preferGh(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   ];
 
   const merged: NodeJS.ProcessEnv = { ...env };
+
   for (const [canonical, legacy] of aliases) {
     merged[canonical] ??= env[legacy];
   }
+
   return merged;
 }
 
@@ -82,12 +84,16 @@ let cached: Env | undefined;
 export function env(): Env {
   if (cached) return cached;
   const parsed = schema.safeParse(preferGh(process.env));
+
   if (!parsed.success) {
     const issues = parsed.error.issues
       .map((i) => `  ${i.path.join(".")}: ${i.message}`)
       .join("\n");
+
     throw new Error(`Invalid environment configuration:\n${issues}`);
   }
+
   cached = parsed.data;
+
   return cached;
 }

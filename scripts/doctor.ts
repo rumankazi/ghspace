@@ -12,13 +12,19 @@ import { Octokit } from "@octokit/core";
 import { Pool } from "pg";
 
 const GREEN = "\x1b[32m";
+
 const RED = "\x1b[31m";
+
 const YELLOW = "\x1b[33m";
+
 const DIM = "\x1b[2m";
+
 const BOLD = "\x1b[1m";
+
 const RESET = "\x1b[0m";
 
 const nextSteps: string[] = [];
+
 let failures = 0;
 
 function heading(text: string) {
@@ -32,18 +38,22 @@ function ok(label: string, detail = "") {
 function bad(label: string, detail = "", fix?: string) {
   failures++;
   console.log(`  ${RED}✗${RESET} ${label.padEnd(24)} ${detail}`);
+
   if (fix) nextSteps.push(fix);
 }
 
 function warn(label: string, detail = "", fix?: string) {
   console.log(`  ${YELLOW}!${RESET} ${label.padEnd(24)} ${detail}`);
+
   if (fix) nextSteps.push(fix);
 }
 
 function redact(url: string): string {
   try {
     const parsed = new URL(url);
+
     if (parsed.password) parsed.password = "***";
+
     return parsed.toString();
   } catch {
     return "(unparseable)";
@@ -66,16 +76,20 @@ for (const [name, label] of [
   ["SESSION_SECRET", "SESSION_SECRET"],
 ] as const) {
   const value = env[name];
+
   if (!value) {
     bad(label, "not set", `Generate one: openssl rand -base64 32  → ${name} in .env`);
     continue;
   }
+
   if (name === "ENCRYPTION_KEY") {
     const bytes = Buffer.from(value, "base64").length;
+
     if (bytes !== 32) {
       bad(label, `decodes to ${bytes} bytes, needs 32`, "Regenerate: openssl rand -base64 32");
       continue;
     }
+
     ok(label, "32 bytes");
   } else {
     ok(label, `${value.length} chars`);
@@ -90,12 +104,16 @@ for (const [name, label] of [
 function read(name: string): { value: string | undefined; usedName: string } {
   const legacy = `GITHUB_${name}`;
   const canonical = `GH_${name}`;
+
   if (env[canonical]) return { value: env[canonical], usedName: canonical };
+
   if (env[legacy]) return { value: env[legacy], usedName: legacy };
+
   return { value: undefined, usedName: canonical };
 }
 
 const appId = read("APP_ID").value;
+
 const privateKeyRaw = read("APP_PRIVATE_KEY").value;
 
 for (const [suffix, hint] of [
@@ -106,6 +124,7 @@ for (const [suffix, hint] of [
   ["APP_PRIVATE_KEY", "base64 of the downloaded .pem"],
 ] as const) {
   const { value, usedName } = read(suffix);
+
   if (!value || value === "placeholder") {
     bad(`GH_${suffix}`, value === "placeholder" ? "still a placeholder" : "not set",
       `Set GH_${suffix} — ${hint}`);
@@ -117,10 +136,12 @@ for (const [suffix, hint] of [
 
 // The private key is the value most likely to be pasted in wrong.
 let privateKey: string | undefined;
+
 if (privateKeyRaw && privateKeyRaw !== "placeholder") {
   privateKey = privateKeyRaw.includes("-----BEGIN")
     ? privateKeyRaw
     : Buffer.from(privateKeyRaw, "base64").toString("utf8");
+
   if (!privateKey.includes("-----BEGIN")) {
     bad("private key format", "neither a PEM nor base64 of one",
       "Re-encode: base64 -i your-app.private-key.pem | tr -d '\\n'");
@@ -137,23 +158,29 @@ if (privateKeyRaw && privateKeyRaw !== "placeholder") {
 heading("Database");
 
 let userCount = 0;
+
 let installationCount = 0;
+
 let pool: Pool | undefined;
 
 if (!env.DATABASE_URL) {
   bad("connection", "skipped, DATABASE_URL is not set");
 } else {
   pool = new Pool({ connectionString: env.DATABASE_URL, max: 1, connectionTimeoutMillis: 8_000 });
+
   try {
     const version = await pool.query<{ v: string }>(
       "select current_setting('server_version') as v",
     );
+
     ok("reachable", `postgres ${version.rows[0]?.v ?? "?"}`);
 
     const tables = await pool.query<{ n: string }>(
       "select table_name as n from information_schema.tables where table_schema = 'public'",
     );
+
     const names = new Set(tables.rows.map((r) => r.n));
+
     const required = [
       "users",
       "installations",
@@ -162,7 +189,9 @@ if (!env.DATABASE_URL) {
       "user_repository_access",
       "pull_request_involvement",
     ];
+
     const missing = required.filter((t) => !names.has(t));
+
     if (missing.length > 0) {
       bad("migrations", `missing: ${missing.join(", ")}`, "Apply them: bun run db:migrate");
     } else {
@@ -206,6 +235,7 @@ if (!appId || !privateKey) {
     ok("credentials", `"${app.data.name}" (id ${app.data.id})`);
 
     const slug = read("APP_SLUG").value;
+
     if (slug && app.data.slug && slug !== app.data.slug) {
       warn("GH_APP_SLUG", `config says "${slug}", GitHub says "${app.data.slug}"`,
         `Correct it: GH_APP_SLUG=${app.data.slug}`);
@@ -213,12 +243,14 @@ if (!appId || !privateKey) {
 
     // Permissions actually granted, versus what the sync needs.
     const granted = (app.data.permissions ?? {}) as Record<string, string>;
+
     const needed = [
       ["pull_requests", "reading pull requests at all"],
       ["metadata", "listing repositories"],
       ["checks", "the CI verdict on each pull request"],
       ["statuses", "legacy commit statuses in the CI verdict"],
     ] as const;
+
     for (const [key, why] of needed) {
       if (granted[key]) ok(`permission: ${key}`, granted[key]);
       else warn(`permission: ${key}`, `not granted — needed for ${why}`,
@@ -237,8 +269,10 @@ if (!appId || !privateKey) {
 
 if (appOctokit) {
   heading("Installations");
+
   try {
     const list = await appOctokit.request("GET /app/installations", { per_page: 100 });
+
     if (list.data.length === 0) {
       warn("installed on", "no accounts yet",
         read("APP_SLUG").value && read("APP_SLUG").value !== "placeholder"
@@ -256,6 +290,7 @@ if (appOctokit) {
       // actually arrive.
       heading("Data probe");
       const first = list.data[0]!;
+
       const installationClient = new Octokit({
         authStrategy: createAppAuth,
         auth: { appId, privateKey, installationId: first.id },
@@ -266,6 +301,7 @@ if (appOctokit) {
       const repos = await installationClient.request("GET /installation/repositories", {
         per_page: 100,
       });
+
       ok("repositories visible", String(repos.data.total_count));
 
       // Sampling the first repository is no good: most repositories have no
@@ -279,6 +315,7 @@ if (appOctokit) {
         const params = candidates
           .map((_, i) => `$owner${i}: String!, $name${i}: String!`)
           .join(", ");
+
         const bodies = candidates
           .map(
             (_, i) => `r${i}: repository(owner: $owner${i}, name: $name${i}) {
@@ -302,6 +339,7 @@ if (appOctokit) {
 
         let forbiddenCommits = 0;
         let scan: Record<string, unknown>;
+
         try {
           scan = (await installationClient.graphql(
             `query Probe(${params}) {
@@ -318,6 +356,7 @@ if (appOctokit) {
             data?: Record<string, unknown>;
             errors?: { path?: (string | number)[] }[];
           };
+
           if (partial?.name !== "GraphqlResponseError" || !partial.data) throw error;
           scan = partial.data;
           forbiddenCommits = (partial.errors ?? []).filter((e) =>
@@ -345,11 +384,14 @@ if (appOctokit) {
 
         let totalOpen = 0;
         let sample: { repo: string; pr: ProbeRepo["pullRequests"]["nodes"][number] } | undefined;
+
         for (let i = 0; i < candidates.length; i++) {
           const entry = scan[`r${i}`] as ProbeRepo | null;
+
           if (!entry) continue;
           totalOpen += entry.pullRequests.totalCount;
           const node = entry.pullRequests.nodes[0];
+
           if (node && !sample) sample = { repo: entry.nameWithOwner, pr: node };
         }
 
@@ -376,6 +418,7 @@ if (appOctokit) {
           );
           ok("reviewDecision", String(sample.pr.reviewDecision));
           ok("mergeable", String(sample.pr.mergeable));
+
           if (rollup === null) {
             warn(
               "statusCheckRollup",
@@ -418,4 +461,5 @@ console.log(
 );
 
 await pool?.end();
+
 process.exit(failures === 0 ? 0 : 1);

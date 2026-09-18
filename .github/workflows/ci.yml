@@ -37,6 +37,68 @@ jobs:
       - name: Build
         run: bun run build
 
+  # Lint is a separate job from `check` so a style finding and a broken build
+  # are distinguishable at a glance, and so a slow typecheck does not delay the
+  # fastest signal. Oxlint needs no database and no credentials either.
+  #
+  # `bun run lint` exits non-zero on errors only. Rules with pre-existing
+  # findings are warnings for now (see the ratchet in .oxlintrc.json), so this
+  # job guards the rules that are already clean — including
+  # anti-slop/require-visible-to-user, the per-user access boundary.
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3"
+
+      - run: bun install --frozen-lockfile
+
+      - name: Lint
+        run: bun run lint
+
+      # The access rule is the one lint rule whose failure would be a data leak
+      # rather than a style regression, so its own behaviour is tested rather
+      # than assumed. It drives the real Oxlint CLI over a fixture, which is why
+      # it does not run under `bun test` in packages/core.
+      - name: Test lint rules
+        run: bun test tools/oxlint
+
+      # apps/docs/lib/source.ts imports @/.source/server, which fumadocs-mdx
+      # generates. Without this, fallow reports it as an unresolved import on a
+      # clean checkout — and a local run will not reproduce that, because a warm
+      # .fallow cache still holds the old resolution. Clear .fallow when
+      # reproducing a CI-only fallow failure.
+      - name: Generate docs sources
+        working-directory: apps/docs
+        run: bunx fumadocs-mdx
+
+      # Dead code, unused dependencies and circular imports. Scoped by
+      # .fallowrc.json to code we own — the vendored Oxlint plugin would
+      # otherwise dominate every report.
+      #
+      # The pinned CLI rather than the fallow-rs/fallow action: the action wants
+      # `id-token: write` so it can exchange the workflow identity for a token
+      # at api.fallow.cloud, and this workflow is deliberately credential-free
+      # so it runs on forks. The CLI needs no account and its telemetry is
+      # opt-in, so nothing here leaves the runner. The version is pinned by the
+      # lockfile instead of a floating @v3 tag.
+      - name: Dead code and dependencies
+        run: bun run deadcode
+
+      - name: Duplication
+        run: bun run dupes
+
+      # Deliberately not a gate. `fallow health` exits 1 on any file over its
+      # threshold, and with a young history its churn signal is mostly noise —
+      # it reported 41 files while scoring the repo 93.3 (good). Useful to read,
+      # not to block on, so its exit code is dropped on purpose.
+      - name: Health report (advisory)
+        run: bun run health || true
+
   # Catches the failure mode where the schema and the generated SQL drift apart:
   # a changed schema.ts without a matching `bun run db:generate` would apply
   # cleanly in development and then fail on a fresh database.
