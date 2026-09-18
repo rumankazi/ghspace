@@ -1,0 +1,86 @@
+---
+title: Development
+description: Getting ghspace running locally.
+---
+
+## Prerequisites
+
+- [Bun](https://bun.sh) 1.3+
+- Docker or Podman (or your own Postgres)
+
+## 1. Create a GitHub App
+
+At [https://github.com/settings/apps/new](https://github.com/settings/apps/new):
+
+- **Callback URL**: `http://localhost:3000/api/auth/callback`
+- ✅ Request user authorization (OAuth) during installation
+- ✅ Expire user authorization tokens
+- ❌ Webhooks (not used yet)
+- **Repository permissions**: Pull requests `Read-only`, Metadata `Read-only`
+- **Account permissions**: Email addresses `Read-only` (optional)
+
+Generate a private key and download the `.pem`.
+
+Then **install it** — on your own account, and on every organisation whose pull
+requests you want to see. Nothing appears for accounts where it is not
+installed.
+
+## 2. Configure
+
+```bash
+cp .env.example .env
+openssl rand -base64 32                       # ENCRYPTION_KEY
+openssl rand -base64 32                       # SESSION_SECRET
+base64 -i your-app.private-key.pem | tr -d '\n'   # GITHUB_APP_PRIVATE_KEY
+```
+
+`GITHUB_APP_SLUG` is the last path segment of your app's settings URL.
+
+## 3. Run
+
+```bash
+bun install
+bun run db:up          # Postgres via docker or podman
+bun run db:migrate
+bun run dev:web        # http://localhost:3000
+bun run dev:worker     # second terminal
+bun run dev:docs       # http://localhost:3001 — this site
+```
+
+Sign in, then either wait for the worker's first cycle or hit **Refresh**.
+
+To sync once without the worker running:
+
+```bash
+cd apps/worker
+bun run sync            # every user's access, then every installation
+bun run sync <login>    # one user's access, then every installation
+```
+
+## Commands
+
+| Command | Does |
+| --- | --- |
+| `bun run dev:web` / `dev:worker` / `dev:docs` | run one process |
+| `bun run db:up` / `db:down` / `db:reset` | local Postgres lifecycle |
+| `bun run db:generate` | generate a migration after a schema change |
+| `bun run db:migrate` | apply migrations |
+| `bun run typecheck` | typecheck every workspace |
+| `cd packages/core && bun test` | run tests |
+
+## Adding a read query
+
+<Callout type="error">
+Any new query returning pull requests **must** compose `visibleToUser(userId)`.
+Without it, the query returns everything the installation token cached —
+including repositories the signed-in user has no access to.
+</Callout>
+
+## Changing the triage rules
+
+`classify()` in `packages/core/src/sync/buckets.ts` is a pure function with full
+test coverage in `packages/core/test/buckets.test.ts`. Change the rules there
+and the tests there; nothing else needs to know.
+
+Note that `bucket` is denormalised onto `pull_request_involvement`, so a rule
+change only takes effect after the next sync.

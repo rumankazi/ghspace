@@ -1,0 +1,27 @@
+{
+  "name": "ghspace",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "bun run --filter '*' build",
+    "db:down": "./scripts/dev-db.sh down",
+    "db:generate": "bun run --filter @ghspace/core db:generate",
+    "db:migrate": "bun run --filter @ghspace/core db:migrate",
+    "db:reset": "./scripts/dev-db.sh reset",
+    "db:studio": "bun run --filter @ghspace/core db:studio",
+    "db:up": "./scripts/dev-db.sh up",
+    "dev": "bun run --filter '*' dev",
+    "dev:docs": "bun run --filter @ghspace/docs dev",
+    "dev:web": "bun run --filter @ghspace/web dev",
+    "dev:worker": "bun run --filter @ghspace/worker dev",
+    "typecheck": "bun run --filter '*' typecheck"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.9.3"
+  }
+}

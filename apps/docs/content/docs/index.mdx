@@ -1,0 +1,76 @@
+---
+title: Overview
+description: What ghspace is, and the three decisions that shape everything else.
+---
+
+ghspace is a GitHub workspace: repositories, pull requests and Actions in one
+place. The first feature — and the only one built so far — is **pull request
+triage**.
+
+GitHub tells you a pull request exists. It does not tell you which ones are
+*yours to move*. ghspace sorts everything you can see into buckets that answer
+one question: what should I do next?
+
+<Cards>
+  <Card title="Architecture" href="/docs/architecture" description="The three processes and why the worker is separate." />
+  <Card title="Access model" href="/docs/access-model" description="GitHub App tokens, and the boundary that keeps users apart." />
+  <Card title="Sync pipeline" href="/docs/sync-pipeline" description="How data gets from GitHub into Postgres." />
+  <Card title="Reliability" href="/docs/reliability" description="Rate limits, fault tolerance, and staleness." />
+  <Card title="Self-hosting" href="/docs/self-hosting" description="Running the stack yourself, and the options in between." />
+  <Card title="Portability" href="/docs/portability" description="The rule that keeps a free managed database and self-hosting compatible." />
+</Cards>
+
+## The three decisions
+
+Almost everything in the codebase follows from three choices. If you only read
+one page of these docs, read this list.
+
+### 1. Postgres is the cache-of-record
+
+Page renders read only from the database, never from the GitHub API. A GitHub
+outage or a rate limit degrades the dashboard to *slightly stale data with a
+visible "synced 4m ago" marker*, rather than to an error page.
+
+This is why there is a worker process at all, and why every read function in
+`packages/core/src/dashboard.ts` touches nothing but Postgres.
+
+### 2. The GitHub App is the query point
+
+Pull requests are fetched **per installation**, not per user. One sync of an
+organisation serves every ghspace user in it, runs with nobody signed in, and
+spends a rate limit budget dedicated to that installation.
+
+Users then filter the cached data — which is a database query, not another API
+call. See [Access model](/docs/access-model).
+
+### 3. Involvement is derived, not asked for
+
+Because the sync fetches repositories whole, "which pull requests involve me" is
+computed locally from data already held: who opened it, who is assigned, whose
+review is pending, who has reviewed.
+
+This has [real limits](/docs/sync-pipeline#what-this-model-cannot-see) — mentions
+and team review requests are invisible — and those limits are a deliberate
+trade, not an oversight.
+
+### A fourth, about where it runs
+
+ghspace depends on Postgres and nothing else about its host. A free managed
+database and a self-hosted container are one line of `.env` apart, which is a
+property that has to be [actively defended](/docs/portability) rather than
+assumed.
+
+## The buckets
+
+| Bucket | Means |
+| --- | --- |
+| **Blocked on you** | Your review is requested and nobody can move without it |
+| **Needs your action** | Changes requested, failing checks, or a merge conflict on your work |
+| **Ready to merge** | Approved, green, mergeable |
+| **Blocked on others** | Your open pull requests waiting on a review |
+| **Your drafts** | Work in progress you have not opened for review |
+| **Watching** | You are assigned, or have already reviewed |
+
+The rules live in one pure function, `classify()` in
+`packages/core/src/sync/buckets.ts`, so they are cheap to test and easy to argue
+about. They are covered by unit tests.

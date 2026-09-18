@@ -1,0 +1,35 @@
+{
+  "name": "@ghspace/core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./db": "./src/db/index.ts",
+    "./github": "./src/github/index.ts",
+    "./sync": "./src/sync/index.ts"
+  },
+  "scripts": {
+    "db:generate": "bunx --env-file=../../.env drizzle-kit generate",
+    "db:migrate": "bun run --env-file=../../.env src/db/migrate.ts",
+    "db:studio": "bunx --env-file=../../.env drizzle-kit studio",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@octokit/auth-app": "^8.3.1",
+    "@octokit/core": "^7.0.8",
+    "@octokit/graphql": "^9.0.5",
+    "@octokit/plugin-retry": "^8.1.1",
+    "@octokit/plugin-throttling": "^11.0.5",
+    "@octokit/types": "^16.0.0",
+    "drizzle-orm": "^0.45.2",
+    "pg": "^8.16.3",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.15.5",
+    "drizzle-kit": "^0.31.10",
+    "typescript": "^5.9.3"
+  }
+}

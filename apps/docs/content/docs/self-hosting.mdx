@@ -1,0 +1,132 @@
+---
+title: Self-hosting
+description: Running the whole stack on your own hardware, and the deployment options in between.
+---
+
+ghspace is three moving parts: a web app, a background sync process, and
+Postgres. Every deployment below is a different answer to "where does each of
+those run".
+
+## The whole stack, on your own machine
+
+```bash
+git clone https://github.com/rumankazi/ghspace
+cd ghspace
+cp .env.example .env
+# fill in the GitHub App values, generate the two secrets
+docker compose up
+```
+
+That brings up Postgres, applies migrations, then starts the web app on
+`:3000` and the worker. No managed services, no cron platform, nothing else
+required.
+
+`docker-compose.yml` is the artifact that has to keep working — if a change
+makes self-hosting harder, it shows up here first.
+
+### How it fits together
+
+| Service | Target | Role |
+| --- | --- | --- |
+| `postgres` | `postgres:18-alpine` | the cache-of-record |
+| `migrate` | `Dockerfile` → `migrate` | runs once and exits; the others wait for it |
+| `web` | `Dockerfile` → `web` | Next.js on `:3000` |
+| `worker` | `Dockerfile` → `worker` | the sync loop |
+
+`migrate` uses `service_completed_successfully`, so a fresh database is always
+migrated before anything queries it. That is what makes the first `up` on a new
+machine work without a manual step.
+
+### With a managed database instead
+
+Set `DATABASE_URL` in `.env` and skip the bundled Postgres:
+
+```bash
+docker compose up web worker
+```
+
+The bundled Postgres exists for convenience, not because ghspace depends on it.
+See [Portability](/docs/portability).
+
+## Deployment options
+
+Three parts, three decisions. Mix freely.
+
+### Zero cost
+
+| Part | Where | Note |
+| --- | --- | --- |
+| Web | Vercel Hobby | set `DATABASE_POOL_MAX=1`, use the transaction-mode pooler |
+| Database | Supabase free | 500 MB is far more than metadata needs |
+| Worker | GitHub Actions cron | `.github/workflows/sync.yml` |
+
+The worker is the part with no free long-running option, so the scheduled
+workflow stands in for it. It runs `bun run src/cli.ts` — the same code path the
+worker uses — on a five-minute schedule.
+
+<Callout type="warn">
+GitHub's scheduled workflows are **best-effort**. Five minutes is the shortest
+accepted interval, runs are delayed under load (sometimes by fifteen minutes or
+more), and a schedule is disabled automatically after 60 days without repository
+activity.
+
+Fine for pull request triage. Not fine if you ever want a guaranteed cadence.
+</Callout>
+
+`ENCRYPTION_KEY` in the workflow secrets must match the web app's, or the stored
+GitHub tokens cannot be decrypted.
+
+### A few dollars a month
+
+| Part | Where |
+| --- | --- |
+| Web + worker | Fly.io or Railway, one app each |
+| Database | the same provider, or Supabase |
+
+This is the first tier with a real worker: reliable timing, no five-minute
+floor, and a natural home for webhooks later.
+
+### Fully self-hosted
+
+`docker compose up` on anything that runs containers — a VPS, a NAS, a machine
+under the desk. One volume to back up (`pgdata`), and it is the only
+configuration where no third party holds your tokens.
+
+## Operational notes
+
+**Secrets.** `ENCRYPTION_KEY` and `SESSION_SECRET` must be stable across
+restarts and identical across every process. Rotating `ENCRYPTION_KEY`
+invalidates every stored GitHub token and forces all users to re-authorise;
+rotating `SESSION_SECRET` signs everyone out.
+
+**The private key.** `GITHUB_APP_PRIVATE_KEY` accepts a raw PEM or a base64
+encoding of one. Base64 is normal, because `.env` cannot hold a multi-line value
+cleanly:
+
+```bash
+base64 -i your-app.private-key.pem | tr -d '\n'
+```
+
+**Backups.** Everything in Postgres is a rebuildable cache of GitHub, with two
+exceptions that are not: `users` and `github_credentials`. Losing those means
+every user signs in again — recoverable, but not silent. Backing up the volume
+avoids it.
+
+**Upgrades.** `docker compose pull && docker compose up -d` re-runs `migrate`
+first. Migrations are forward-only; there are no down migrations.
+
+**Scaling.** The web app is stateless and scales horizontally. The worker is
+**not** — running two would sync each installation twice. If you need more
+throughput, raise `SYNC_INTERVAL_SECONDS` rather than adding replicas, and treat
+webhooks as the real answer.
+
+## Enterprise Server
+
+`GITHUB_API_BASE_URL` and `GITHUB_WEB_BASE_URL` point at public GitHub by
+default and are stored per user, so pointing ghspace at a GitHub Enterprise
+Server instance is configuration rather than a code change.
+
+<Callout>
+Untested against a real GHES instance. The seam exists because it was nearly
+free to leave in place, not because it has been exercised.
+</Callout>

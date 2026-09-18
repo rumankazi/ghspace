@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1789479972259,
+      "tag": "0000_living_the_watchers",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1789623524506,
+      "tag": "0001_steep_george_stacy",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789705303310,
+      "tag": "0002_freezing_molten_man",
+      "breakpoints": true
+    }
+  ]
+}

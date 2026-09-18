@@ -1,0 +1,56 @@
+---
+title: Architecture
+description: Three processes, one shared core, and why the worker is not a cron route.
+---
+
+```
+apps/web       Next.js — sign-in, triage view, browse view. Reads Postgres only.
+apps/worker    Bun — background sync loop and token refresh.
+apps/docs      Next.js — this site.
+packages/core  Schema, GitHub clients, sync logic, triage rules, read queries.
+```
+
+`packages/core` is consumed straight from TypeScript source — there is no build
+step between the packages. `apps/web` lists it in `transpilePackages`.
+
+## Why the worker is a separate process
+
+It would be less code to run sync from a Next.js route on a cron schedule. That
+was rejected for two reasons:
+
+1. **Self-hosting.** The deployment story is `docker compose up` with web +
+   worker + postgres. A sync that depends on a specific platform's cron
+   primitive leaks the deployment target into the sync logic.
+2. **Duration.** Syncing a large organisation is not a request-shaped unit of
+   work. Serverless function timeouts would force artificial chunking.
+
+The worker runs two schedules with very different characteristics:
+
+| | Installation sync | Access sync |
+| --- | --- | --- |
+| Fetches | every open PR in an installation | which repos each user may see |
+| Frequency | every `SYNC_INTERVAL_SECONDS` (default 120s) | every 10th cycle |
+| Token | installation | that user's own |
+| Purpose | freshness | a security boundary |
+
+Access changes rarely — team membership, not pull request activity — so
+re-checking it on every cycle would spend users' personal rate limits for
+almost no benefit.
+
+## Request path
+
+Nothing in a page render calls GitHub.
+
+```
+Browser → Next.js server component → Postgres → HTML
+```
+
+The only GitHub calls from `apps/web` are the OAuth exchange at sign-in and the
+manual **Refresh** button, which runs the same sync functions the worker does.
+
+## Client-side freshness
+
+`AutoRefresh` calls `router.refresh()` every 30 seconds while the tab is
+visible. That re-runs the server components, which re-query Postgres. It costs
+nothing against the GitHub API budget, which is precisely why it can be that
+frequent.

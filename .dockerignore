@@ -1,0 +1,14 @@
+node_modules
+**/node_modules
+.git
+.next
+**/.next
+.source
+**/.source
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
+*.pem
+.pgdata
+scratchpad

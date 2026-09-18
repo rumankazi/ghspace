@@ -1,0 +1,17 @@
+node_modules/
+.next/
+dist/
+out/
+*.tsbuildinfo
+
+.env
+.env.local
+.env.*.local
+!.env.example
+
+*.pem
+*.private-key.pem
+
+.DS_Store
+*.log
+.pgdata/

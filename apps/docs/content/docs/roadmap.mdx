@@ -1,0 +1,44 @@
+---
+title: Roadmap
+description: What exists, what is next, and what is deliberately deferred.
+---
+
+## Built
+
+- Pull request triage across installed accounts, sorted into action buckets
+- Browse view with repository, author, involvement, draft and title filters
+- Installation coverage panel, so missing organisations read as a setting
+- Per-user access enforcement
+- Background sync with rate limit accounting and failure isolation
+
+## Next
+
+**Webhooks.** Near-realtime updates for installed repositories, at near-zero
+rate limit cost. This needs the installation JWT flow — already present for
+minting tokens — plus signature verification and event ordering. Polling stays
+as reconciliation, because webhooks are unreliable by nature.
+
+**Recovering lost signals.** Team review requests silently under-fill *Blocked
+on you*; see [Sync pipeline](/docs/sync-pipeline#what-this-model-cannot-see).
+Fixing it needs `GET /user/teams` and the organisation members read permission.
+
+**GitHub Actions.** Workflow runs per repository. The repo-wide sync already
+fetches check rollups, so a good deal of the groundwork exists.
+
+## Deferred
+
+**Multi-user onboarding.** The schema and access enforcement are already
+multi-tenant; what is missing is the sign-up flow and installation callback
+handling.
+
+**Enterprise / self-hosting.** `docker-compose.yml` is the intended artifact and
+`apiBaseUrl` is already per-user, so GitHub Enterprise Server is configuration
+rather than a code change. Untested against a real GHES instance.
+
+## Open questions
+
+- Do GitHub App user tokens reach public repositories in accounts where the app
+  is not installed? See [Access model](/docs/access-model#open-question).
+- At what organisation size does a 2-minute full refresh stop being reasonable?
+  The answer probably arrives as a webhooks requirement rather than a tuning
+  exercise.

@@ -1,0 +1,95 @@
+---
+title: Portability
+description: The one rule that keeps a free managed database and self-hosting from being a choice.
+---
+
+ghspace can run on a free managed Postgres *and* be self-hosted on your own
+hardware. These are not alternatives, and keeping both costs almost nothing —
+provided one rule holds.
+
+## The rule
+
+<Callout type="error">
+**Use the Postgres connection string and nothing else.**
+
+A managed provider is a place to run Postgres, not a platform to build on. The
+moment ghspace depends on a provider feature, self-hosting stops being a
+configuration change and becomes a rewrite.
+</Callout>
+
+Concretely, for Supabase — the same logic applies to any provider:
+
+| Allowed | Forbidden |
+| --- | --- |
+| `DATABASE_URL` | `@supabase/supabase-js` for data access |
+| Standard SQL, Drizzle migrations | Supabase Auth (GoTrue) |
+| The connection pooler | Row Level Security keyed to `auth.uid()` |
+| | Realtime, Storage, Edge Functions, PostgREST |
+
+Under that rule these two are interchangeable, and switching is one line of
+`.env`:
+
+```bash
+DATABASE_URL=postgres://postgres:...@db.PROJECT.supabase.co:5432/postgres
+DATABASE_URL=postgres://ghspace:ghspace@postgres:5432/ghspace
+```
+
+## Why this is cheap to keep
+
+ghspace does not want the features it is giving up:
+
+- **Auth** is already GitHub OAuth plus HMAC-signed cookies. A provider's auth
+  service would be a second identity system for no gain.
+- **Realtime** is unnecessary. The data refreshes on a sync cycle; a 30-second
+  `router.refresh()` against the local database is both simpler and cheaper.
+- **Storage** has nothing to store. ghspace caches metadata, not files.
+
+## The one real trap
+
+**Row Level Security** is the feature that would lock ghspace in, and it is the
+most tempting one — it is a provider's headline capability, and it does
+genuinely enforce access at the database.
+
+Adopting it would mean rewriting `visibleToUser` as SQL policies bound to a
+provider-specific session variable. The application would then be unable to run
+against a plain Postgres without reimplementing that enforcement.
+
+Enforcing access in the query layer instead — [as the access model
+does](/docs/access-model#the-security-boundary) — is what keeps ghspace
+portable. The cost is discipline: every read path must compose the predicate,
+because the database will not do it for you.
+
+## Serverless versus long-running
+
+The one place the deployment target reaches into the code is the connection
+pool, and it is parameterised rather than assumed:
+
+| Deployment | `DATABASE_POOL_MAX` | Connection |
+| --- | --- | --- |
+| Self-hosted, Fly, Railway | `10` (default) | direct, port 5432 |
+| Vercel or other serverless | `1` | pooler, transaction mode, port 6543 |
+
+Serverless holds one pool **per function instance**, so concurrent invocations
+multiply the pool size. A free tier's 60 direct connections disappear quickly
+that way. A transaction-mode pooler fixes it.
+
+<Callout>
+Transaction mode does not support prepared statements. ghspace never calls
+Drizzle's `.prepare()`, so this is not a constraint today — but it is a reason
+not to start.
+</Callout>
+
+## Free tier headroom
+
+Measured against Supabase's free plan, since that is the intended starting
+point:
+
+| Limit | Free plan | ghspace's usage |
+| --- | --- | --- |
+| Database size | 500 MB | ~2 KB per pull request with its relations, so roughly 250,000 open PRs before it matters |
+| Direct connections | 60 | web (10) + worker (10) = 20 |
+| Pooler clients | 200 | only relevant on serverless |
+| Inactivity pause | after 7 days of low activity | the sync queries every couple of minutes, so it never idles |
+
+Nothing here is close to binding. The database is metadata only — no diffs, no
+file contents, no comment bodies.

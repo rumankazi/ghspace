@@ -1,0 +1,112 @@
+---
+title: Sync pipeline
+description: How pull requests get from GitHub into Postgres, and what this model cannot see.
+---
+
+## Installation sync
+
+`syncInstallation()` in `packages/core/src/sync/installation-sync.ts` is the
+primary data path.
+
+1. **List repositories** — `GET /installation/repositories`, paginated. Archived
+   repositories are skipped; they have no actionable pull requests.
+2. **Fetch open pull requests** — GraphQL, batched **10 repositories per
+   document** using aliases.
+3. **Write the snapshot** — one transaction, described below.
+4. **Derive involvement** — for every user with access to any of these
+   repositories.
+
+### Why batching
+
+One request per repository would mean hundreds of requests for a large
+organisation, which hits secondary rate limits long before it runs out of
+GraphQL points. Ten aliases per document keeps the request count proportional to
+`repos / 10` while keeping any single query's cost bounded.
+
+Repositories with more open pull requests than one page holds get follow-up
+single-repository queries, so the common case — almost every repository — stays
+a pure batch with no extra requests.
+
+### Why one GraphQL document
+
+The REST equivalent would be a search call plus per-PR calls for reviews, review
+requests and check runs. That N+1 exhausts the 30 requests/minute search limit
+almost immediately. One GraphQL fragment returns the pull request, its reviews,
+its pending reviewers, its assignees and its check rollup together.
+
+The fragment and its parser live together in
+`packages/core/src/github/pull-request-fields.ts`, because two code paths fetch
+pull requests and they must agree on the shape exactly.
+
+## Atomicity
+
+The whole snapshot is written in one transaction. A partial write would leave an
+organisation's pull requests half-refreshed for *every* ghspace user who can see
+them.
+
+The page is allowed to be old. It is never allowed to be internally
+inconsistent.
+
+## Sweeping
+
+The fetch asks for `states: OPEN`, so a merged pull request simply stops coming
+back. Rather than asking GitHub what disappeared, each run stamps `syncedAt` and
+then deletes rows older than the run:
+
+```sql
+DELETE FROM pull_requests
+WHERE repository_id = ANY($1) AND synced_at < $2
+```
+
+The same pattern retires repositories removed from an installation, and
+involvement rows that no longer hold. It handles merged, closed, unassigned and
+access-revoked with one mechanism and no special cases.
+
+## Deriving involvement
+
+Nobody asks GitHub "which pull requests involve me". `recomputeInvolvement()`
+works it out from fields already cached:
+
+| Signal | Derived from |
+| --- | --- |
+| `isAuthor` | `pull_requests.author_login` |
+| `isReviewRequested` | `pull_request_review_requests` (non-team) |
+| `isAssigned` | `pull_request_assignees` |
+| `hasReviewed` | `pull_request_reviews` |
+
+A pull request with none of these produces no row — the triage view is a list of
+things that involve you, and everything else belongs to the browse view.
+
+## What this model cannot see
+
+Two signals are genuinely lost compared to a per-user `involves:@me` search,
+because GitHub only exposes them through search qualifiers rather than on the
+pull request itself:
+
+<Callout type="warn">
+**Mentions and comments.** `involves:` matched pull requests you commented on or
+were @-mentioned in. Nothing on the pull request records this without reading
+every comment body.
+
+**Team review requests.** `review-requested:` matched requests addressed to a
+team you belong to. Repo-wide data carries only the team slug, so matching needs
+the user's team memberships.
+</Callout>
+
+The second one matters more, because it silently under-fills **Blocked on
+you** — the most valuable bucket. Recovering it needs `GET /user/teams` and the
+organisation members read permission.
+
+`searchPullRequests()` in `packages/core/src/github/queries.ts` is kept,
+unused by the main path, as the recovery route for both. It costs a user's own
+rate limit per user, which is exactly what the installation-first design avoids
+— so it is a deliberate trade to make later, if these signals prove to matter.
+
+## Access sync
+
+`syncUserAccess()` runs on its own, slower schedule. It calls
+`GET /user/installations`, then `GET /user/installations/{id}/repositories` for
+each, and rebuilds that user's allowlist.
+
+It runs **before** the first installation sync, because involvement can only be
+derived for users whose repository access is already known.

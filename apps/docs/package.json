@@ -1,0 +1,30 @@
+{
+  "name": "@ghspace/docs",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "fumadocs-mdx && next dev -p 3001",
+    "build": "fumadocs-mdx && next build",
+    "start": "next start -p 3001",
+    "typecheck": "fumadocs-mdx && tsc --noEmit"
+  },
+  "dependencies": {
+    "fumadocs-core": "^16.15.11",
+    "fumadocs-mdx": "^15.4.1",
+    "fumadocs-ui": "^16.15.11",
+    "next": "^16.3.5",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@types/mdx": "^2.0.13",
+    "@types/node": "^26.5.1",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.3.3",
+    "@tailwindcss/postcss": "^4.3.3",
+    "typescript": "^5.9.3"
+  }
+}

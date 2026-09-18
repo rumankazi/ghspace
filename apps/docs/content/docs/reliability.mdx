@@ -1,0 +1,86 @@
+---
+title: Reliability
+description: Rate limits, fault tolerance, and being honest about staleness.
+---
+
+The design constraint is that the dashboard must be trustworthy even when the
+GitHub API is not.
+
+## Never call GitHub during a render
+
+Page renders read only from Postgres. This single decision buys most of the
+fault tolerance: GitHub rate-limits you or goes down, and the page still loads
+with a "synced 4m ago" badge instead of an error.
+
+The corollary is an obligation. A cached page **must** say how old it is. Being
+visibly two minutes behind is fine; being silently wrong is not. That is what
+`SyncStatus` is for, and why `getSyncState` reports the worst case across a
+user's installations rather than the best.
+
+## Rate limits
+
+| Lever | Effect |
+| --- | --- |
+| GraphQL over REST search | REST search caps at 30 req/min and needs N+1 calls for reviews and checks |
+| 10 repositories per document | request count scales as `repos / 10` |
+| Installation tokens | dedicated budget per installation, not shared with other apps |
+| Octokit throttling plugin | handles `retry-after`, secondary limits, per-endpoint serialisation |
+| Octokit retry plugin | retries transient failures, never 4xx |
+
+<Callout>
+The throttling and retry plugins are configured, not reimplemented. Hand-rolled
+backoff gets the abuse-detection cases subtly wrong.
+</Callout>
+
+Retry policy differs by limit type, because the two mean different things:
+
+- **Primary** limits are a quota. Retried twice — beyond that we give up and let
+  the run fail, leaving the previous cached data in place rather than blocking
+  for an hour.
+- **Secondary** limits are abuse detection. They clear quickly, so they are
+  worth waiting out: retried three times.
+
+## Failure isolation
+
+Failures are contained at the level where they matter:
+
+- One installation failing does not stop the others in a cycle.
+- One user's unusable credentials do not stop the access cycle — that is logged
+  at `warn`, not `error`, because it needs the user to re-authorise rather than
+  indicating a system fault.
+- A cycle-level failure (usually Postgres) is logged and the schedule continues.
+  Exiting would lose the schedule.
+- The manual **Refresh** action never throws. The failure is already recorded on
+  `sync_runs` and shown by the page; throwing would replace a usable stale
+  dashboard with an error screen.
+
+## Overlap and jitter
+
+A cycle that outruns its interval is skipped rather than queued, guarded by an
+in-flight flag. Each wait adds up to 10% jitter so that several self-hosted
+instances, or a restart loop, do not hit GitHub in lockstep.
+
+## Bounded work
+
+Every unbounded loop has a ceiling, and every ceiling logs when it is hit:
+
+- 5 follow-up pages per repository (100 PRs each)
+- 4 pages per search in the recovery path
+- 200 rows per browse page
+
+<Callout type="warn">
+Silent truncation reads as "we covered everything" when it did not. If a limit
+bites, it must appear in the logs.
+</Callout>
+
+## Secrets
+
+- GitHub tokens: AES-256-GCM, key from `ENCRYPTION_KEY`, stored as `bytea`.
+- Sessions: HMAC-SHA256 signed cookies, compared with `timingSafeEqual`.
+- OAuth: single-use `state` cookie, also compared in constant time.
+- The app private key is never stored; installation tokens are minted on demand.
+
+`crypto.ts` and `db/client.ts` deliberately read their one environment variable
+directly rather than through `env()`. Routing them through the full schema would
+make unrelated settings — a GitHub App slug, say — prerequisites for encrypting
+a string or running a migration.

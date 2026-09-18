@@ -1,0 +1,20 @@
+{
+  "name": "@ghspace/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun run --watch --env-file=../../.env src/index.ts",
+    "start": "bun run --env-file=../../.env src/index.ts",
+    "sync": "bun run --env-file=../../.env src/cli.ts",
+    "build": "echo 'worker runs from source under bun'",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ghspace/core": "workspace:*",
+    "drizzle-orm": "^0.45.2"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

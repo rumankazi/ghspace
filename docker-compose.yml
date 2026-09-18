@@ -1,0 +1,79 @@
+# The self-host artifact.
+#
+#   cp .env.example .env    # fill in the GitHub App values and generate secrets
+#   docker compose up
+#
+# Brings up Postgres, applies migrations, then starts the web app on :3000 and
+# the background worker. Nothing else is required — no managed database, no
+# cron service, no serverless platform.
+#
+# To use a managed Postgres (Supabase, Neon, RDS) instead of the bundled one,
+# set DATABASE_URL in .env and start only the app services:
+#
+#   docker compose up web worker
+#
+services:
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ghspace
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ghspace}
+      POSTGRES_DB: ghspace
+    ports:
+      # Exposed for psql and drizzle-kit studio from the host. Remove this
+      # mapping if the database does not need to be reachable from outside.
+      - "5433:5432"
+    volumes:
+      # Postgres 18 images place data in a major-version subdirectory and
+      # expect the volume one level up, at /var/lib/postgresql.
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ghspace -d ghspace"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Runs to completion and exits. web and worker wait for it, so a fresh
+  # database is always migrated before anything tries to query it.
+  migrate:
+    build:
+      context: .
+      target: migrate
+    env_file: .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgres://ghspace:ghspace@postgres:5432/ghspace}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  web:
+    build:
+      context: .
+      target: web
+    env_file: .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgres://ghspace:ghspace@postgres:5432/ghspace}
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:3000}
+    ports:
+      - "3000:3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      target: worker
+    env_file: .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgres://ghspace:ghspace@postgres:5432/ghspace}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  pgdata:

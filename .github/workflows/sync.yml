@@ -1,0 +1,61 @@
+# The free worker.
+#
+# ghspace's sync is a plain script, so it can run as a scheduled job instead of
+# a long-running process. That makes a zero-cost deployment possible:
+# Vercel (free) for the web app, Supabase (free) for Postgres, and this workflow
+# in place of a worker container.
+#
+# Trade-offs versus the real worker, all of them acceptable for pull request
+# triage but worth knowing:
+#
+#   - Five minutes is the shortest interval GitHub accepts.
+#   - Scheduled runs are best-effort. Under load they are delayed, sometimes by
+#     fifteen minutes or more. There is no guaranteed cadence.
+#   - Scheduled workflows are disabled automatically after 60 days without any
+#     repository activity.
+#
+# Required repository secrets (Settings → Secrets and variables → Actions):
+#   DATABASE_URL, ENCRYPTION_KEY, GITHUB_APP_ID, GITHUB_APP_SLUG,
+#   GITHUB_APP_CLIENT_ID, GITHUB_APP_CLIENT_SECRET, GITHUB_APP_PRIVATE_KEY
+#
+# ENCRYPTION_KEY must be the same value the web app uses, or the stored GitHub
+# tokens cannot be decrypted.
+name: sync
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  # A delayed run must not overlap the next one and double-write the cache.
+  group: ghspace-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3"
+
+      - run: bun install --frozen-lockfile
+
+      - name: Sync pull requests
+        working-directory: apps/worker
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          # One connection: this is a short-lived job, and a managed free tier
+          # has few connections to spare.
+          DATABASE_POOL_MAX: "1"
+          ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+          GITHUB_APP_ID: ${{ secrets.GITHUB_APP_ID }}
+          GITHUB_APP_SLUG: ${{ secrets.GITHUB_APP_SLUG }}
+          GITHUB_APP_CLIENT_ID: ${{ secrets.GITHUB_APP_CLIENT_ID }}
+          GITHUB_APP_CLIENT_SECRET: ${{ secrets.GITHUB_APP_CLIENT_SECRET }}
+          GITHUB_APP_PRIVATE_KEY: ${{ secrets.GITHUB_APP_PRIVATE_KEY }}
+        run: bun run src/cli.ts

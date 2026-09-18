@@ -1,0 +1,17 @@
+{
+  "title": "ghspace",
+  "pages": [
+    "index",
+    "---Design---",
+    "architecture",
+    "access-model",
+    "sync-pipeline",
+    "data-model",
+    "reliability",
+    "---Practical---",
+    "development",
+    "self-hosting",
+    "portability",
+    "roadmap"
+  ]
+}

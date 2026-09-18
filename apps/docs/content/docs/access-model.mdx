@@ -1,0 +1,112 @@
+---
+title: Access model
+description: How GitHub App tokens work, what they can and cannot reach, and the boundary that keeps users apart.
+---
+
+This is the page most worth reading carefully. The token model is easy to get
+wrong, and getting it wrong leaks private repositories.
+
+## A GitHub App only sees where it is installed
+
+From the [GitHub documentation](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/authenticating-with-a-github-app-on-behalf-of-a-user):
+
+> The app can only access resources in an account where it is installed. If your
+> app is only installed on a user's personal account, it cannot access resources
+> in an organization that the user is a member of unless the app is also
+> installed on that organization.
+
+<Callout type="warn">
+This applies to **user access tokens too**. A user-to-server token's reach is
+the *intersection* of what the app has via installations and what the user can
+personally see. It is not a way around installation scope.
+</Callout>
+
+So requiring users to install ghspace on their organisations is the product's
+onboarding, not a limitation to design around. Every tool in this space works
+the same way, for the same reason.
+
+The dashboard surfaces its own coverage — which accounts are connected, how many
+repositories each exposes — so a missing organisation reads as a setting rather
+than a bug.
+
+## Two tokens, two jobs
+
+| | Installation token | User token |
+| --- | --- | --- |
+| Acts as | the app itself | the signed-in user |
+| Sees | everything the installation granted | installation ∩ that user's own access |
+| Rate limit | 5,000/hr **dedicated**, scaling to 12,500 by account size | 5,000/hr **shared** with every other app acting for that user |
+| Needs user online | no | yes — plus token refresh |
+| Used for | fetching pull requests | identity, and the access allowlist |
+
+Note the rate limit row. It is the opposite of what intuition suggests: the
+installation token has the private pool, and the user token shares one with
+every OAuth app the person has ever authorised. That is one reason pull request
+fetching uses installation tokens.
+
+## The security boundary
+
+An installation token can read **every repository in the installation**. If an
+organisation installs ghspace across all its repos, that token sees things
+individual members do not.
+
+So there is exactly one thing standing between users:
+
+```ts title="packages/core/src/dashboard.ts"
+function visibleToUser(userId: string) {
+  return exists(
+    db().select({ one: sql`1` })
+      .from(userRepositoryAccess)
+      .where(and(
+        eq(userRepositoryAccess.userId, userId),
+        eq(userRepositoryAccess.repositoryId, pullRequests.repositoryId),
+      )),
+  );
+}
+```
+
+<Callout type="error">
+**Every read path that returns pull requests must compose `visibleToUser`.**
+Omitting it on a new query would silently leak private repositories between
+users of the same organisation. This is the single most dangerous thing to get
+wrong in the codebase.
+</Callout>
+
+`user_repository_access` is built by `syncUserAccess`, which calls
+`GET /user/installations/{id}/repositories` with **that user's own token** — the
+only call that knows what one person is entitled to. Rows not reasserted by a
+run are swept, which is how revoked access actually takes effect.
+
+## Token lifecycle
+
+**User tokens** expire in roughly 8 hours, refreshed with a token valid for
+about 6 months. GitHub **rotates the refresh token on every use**, so the new
+pair is persisted *before* the access token is handed out — if that write failed
+after a successful refresh, the old refresh token would already be dead and the
+user would be locked out.
+
+**Installation tokens** last an hour and are minted on demand from the app's
+private key. `@octokit/auth-app` handles minting, caching and renewal, so they
+are never stored.
+
+Tokens at rest are AES-256-GCM encrypted under `ENCRYPTION_KEY`, in a `bytea`
+column so nothing can log them as a readable-looking string.
+
+## Enterprise Server
+
+`apiBaseUrl` is stored per user and threaded through every client constructor,
+so pointing ghspace at a GitHub Enterprise Server install is configuration
+rather than a code change. This costs almost nothing now and would be expensive
+to retrofit.
+
+## Open question
+
+GitHub Apps have *"implicit permissions to read public resources when acting on
+behalf of a user"*, but the documentation does not say whether that reaches
+**public repositories in accounts where the app is not installed**. A
+[community thread on exactly this](https://github.com/orgs/community/discussions/116677)
+went unanswered.
+
+It decides whether open-source contributions appear for repositories you cannot
+install on. Worth settling empirically rather than designing around either
+answer.
