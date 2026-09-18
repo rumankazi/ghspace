@@ -1,0 +1,82 @@
+# Typecheck, test and build every workspace on push and pull request.
+#
+# Deliberately does not need a database or any GitHub App credentials: every
+# page is `force-dynamic`, so the Next.js build reaches no data, and the tests
+# are pure functions. A CI job that needed secrets could not run on a fork.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3"
+
+      - run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Test
+        working-directory: packages/core
+        run: bun test
+
+      - name: Build
+        run: bun run build
+
+  # Catches the failure mode where the schema and the generated SQL drift apart:
+  # a changed schema.ts without a matching `bun run db:generate` would apply
+  # cleanly in development and then fail on a fresh database.
+  migrations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: ghspace
+          POSTGRES_PASSWORD: ghspace
+          POSTGRES_DB: ghspace
+        options: >-
+          --health-cmd "pg_isready -U ghspace -d ghspace"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+        ports:
+          - 5432:5432
+    env:
+      DATABASE_URL: postgres://ghspace:ghspace@localhost:5432/ghspace
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3"
+
+      - run: bun install --frozen-lockfile
+
+      - name: Apply migrations to a fresh database
+        working-directory: packages/core
+        run: bun run src/db/migrate.ts
+
+      - name: Fail if the schema has drifted from the generated SQL
+        working-directory: packages/core
+        run: |
+          bunx drizzle-kit generate
+          if ! git diff --quiet -- drizzle; then
+            echo "::error::schema.ts has changed without a matching migration."
+            echo "Run: bun run db:generate — then commit the result."
+            git --no-pager diff --stat -- drizzle
+            exit 1
+          fi

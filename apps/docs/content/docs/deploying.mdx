@@ -1,0 +1,122 @@
+---
+title: Deploying
+description: Getting ghspace onto Vercel, Supabase and a scheduled Action, for nothing.
+---
+
+Three moving parts, three homes. This page covers the zero-cost combination;
+[Self-hosting](/docs/self-hosting) covers running all three yourself.
+
+| Part | Home | Why |
+| --- | --- | --- |
+| Web app | Vercel Hobby | free, and Next.js is its native case |
+| Database | Supabase free | 500 MB against roughly 2 KB per pull request |
+| Worker | GitHub Actions cron | the only part with no free long-running option |
+
+## 1. Database
+
+Create a Supabase project and take the **connection string**, nothing else —
+see [Portability](/docs/portability) for why that restraint matters.
+
+You need both forms:
+
+| Use | Form | Port |
+| --- | --- | --- |
+| Vercel (serverless) | transaction-mode pooler | 6543 |
+| GitHub Actions, migrations | direct | 5432 |
+
+Serverless holds one pool per function instance, so the pooler is not optional
+there. Set `DATABASE_POOL_MAX=1` alongside it.
+
+Apply the schema from your machine, pointing at the direct connection:
+
+```bash
+DATABASE_URL="postgres://postgres:PASS@db.PROJECT.supabase.co:5432/postgres" \
+  bun run --filter @ghspace/core db:migrate
+```
+
+## 2. Web app
+
+Import the repository in Vercel and set **Root Directory** to `apps/web`, with
+**Include source files outside of the Root Directory** enabled — `apps/web`
+imports `@ghspace/core` straight from source, so the build needs the whole
+workspace.
+
+Vercel detects Next.js and `bun.lock` on its own. The build requires no
+database and no secrets, because every page is `force-dynamic` and so reaches
+no data at build time.
+
+Environment variables:
+
+```bash
+DATABASE_URL=postgres://postgres.PROJECT:PASS@REGION.pooler.supabase.com:6543/postgres
+DATABASE_POOL_MAX=1
+ENCRYPTION_KEY=          # openssl rand -base64 32
+SESSION_SECRET=          # openssl rand -base64 32
+GITHUB_APP_ID=
+GITHUB_APP_SLUG=
+GITHUB_APP_CLIENT_ID=
+GITHUB_APP_CLIENT_SECRET=
+GITHUB_APP_PRIVATE_KEY=  # base64 of the .pem
+APP_BASE_URL=https://your-deployment.vercel.app
+```
+
+<Callout type="warn">
+`ENCRYPTION_KEY` must be **identical** in Vercel and in the Actions secrets.
+The worker writes GitHub tokens encrypted under it and the web app reads them
+back; two different keys mean every sync stores tokens the web app cannot
+decrypt.
+</Callout>
+
+`APP_BASE_URL` has to match the deployment's real origin, because the OAuth
+callback is built from it.
+
+## 3. Worker
+
+`.github/workflows/sync.yml` runs the same code path as the worker process, on
+a five-minute schedule.
+
+Add these repository secrets (**Settings → Secrets and variables → Actions**):
+`DATABASE_URL` (direct, port 5432), `ENCRYPTION_KEY`, `GITHUB_APP_ID`,
+`GITHUB_APP_SLUG`, `GITHUB_APP_CLIENT_ID`, `GITHUB_APP_CLIENT_SECRET`,
+`GITHUB_APP_PRIVATE_KEY`.
+
+<Callout type="warn">
+Scheduled workflows are **best-effort**. Five minutes is the shortest interval
+GitHub accepts, runs are delayed under load — sometimes by fifteen minutes or
+more — and a schedule is disabled automatically after 60 days without
+repository activity.
+
+Adequate for pull request triage. If you ever need a guaranteed cadence, a
+long-running worker on Fly or Railway is a couple of dollars a month.
+</Callout>
+
+## 4. Point the GitHub App at the deployment
+
+Update the app's **Callback URL** to
+`https://your-deployment.vercel.app/api/auth/callback`.
+
+GitHub Apps accept several callback URLs, so keep
+`http://localhost:3000/api/auth/callback` alongside it and local development
+keeps working.
+
+## 5. Check it
+
+```bash
+DATABASE_URL="<direct connection>" bun run doctor
+```
+
+The doctor validates credentials against the live API, lists installations, and
+samples a real pull request to confirm the fields the dashboard needs arrive.
+
+Then sign in on the deployment and trigger the workflow by hand from the
+**Actions** tab rather than waiting out the first schedule.
+
+## What CI already guards
+
+`.github/workflows/ci.yml` typechecks, tests and builds every workspace, and
+applies migrations to a throwaway Postgres.
+
+It also fails when `schema.ts` has changed without a matching
+`bun run db:generate`. That drift is invisible in development, where the
+database already has the column, and only surfaces against a fresh database —
+which, on this setup, means production.
