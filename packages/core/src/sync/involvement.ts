@@ -45,6 +45,12 @@ export async function recomputeInvolvement(
 ): Promise<number> {
   if (repositoryIds.length === 0 || users.length === 0) return 0;
 
+  // ACCESS: deliberately not scoped by `visibleToUser`. This runs inside the
+  // sync, before any viewer exists, and its job is to compute involvement for
+  // every user in the installation at once — scoping it to one user would make
+  // the result wrong, not safer. Nothing here reaches a browser: the rows are
+  // reduced to `pullRequestInvolvement` records, which the dashboard then reads
+  // back through the predicate.
   const prs = await tx
     .select()
     .from(pullRequests)

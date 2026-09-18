@@ -18,6 +18,8 @@ import { noUnsafeDictionaryTypeRule } from "./rules/no-unsafe-dictionary-type.ts
 import { noWidenThenAssertRule } from "./rules/no-widen-then-assert.ts";
 import { requireReadableSpacingRule } from "./rules/require-readable-spacing.ts";
 import { requireSafetyCommentForTypeAssertionRule } from "./rules/require-safety-comment-for-type-assertion.ts";
+// ghspace-local rule; see rules/require-visible-to-user.ts before merging upstream.
+import { requireVisibleToUserRule } from "./rules/require-visible-to-user.ts";
 
 /** Generic Oxlint rules that reject low-evidence and low-signal implementation patterns. */
 const antiSlopPlugin = eslintCompatPlugin({
@@ -41,6 +43,7 @@ const antiSlopPlugin = eslintCompatPlugin({
 		"no-widen-then-assert": noWidenThenAssertRule,
 		"require-readable-spacing": requireReadableSpacingRule,
 		"require-safety-comment-for-type-assertion": requireSafetyCommentForTypeAssertionRule,
+		"require-visible-to-user": requireVisibleToUserRule,
 	},
 });
 
