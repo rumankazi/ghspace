@@ -49,16 +49,23 @@ export default async function Home({
         </form>
       ) : null}
 
-      <p className="text-muted-foreground text-xs leading-relaxed">
-        After signing in you will be asked to install ghspace on your account and on the
-        organizations you want monitored. A GitHub App can only see accounts it is
-        installed on, so this step is what makes your pull requests visible.
-      </p>
-
-      <p className="text-muted-foreground text-xs leading-relaxed">
-        ghspace reads pull requests on your behalf and stores a cached snapshot so the
-        dashboard stays available even when the GitHub API is not.
-      </p>
+      {/* Installation is a second trip through GitHub and surprises people who
+          expect signing in to be the whole of it. Saying so up front turns it
+          into an expected step rather than an obstacle. */}
+      <div className="space-y-2">
+        <h2 className="text-sm font-medium">How it works</h2>
+        <ol className="text-muted-foreground list-decimal space-y-1.5 pl-4 text-xs leading-relaxed">
+          <li>Sign in with your GitHub account.</li>
+          <li>
+            Choose which account and organizations ghspace should watch. It is a GitHub
+            App, so it only sees the ones you install it on.
+          </li>
+          <li>
+            Their open pull requests are cached and sorted, so the dashboard stays up even
+            when the GitHub API is not.
+          </li>
+        </ol>
+      </div>
     </main>
   );
 }

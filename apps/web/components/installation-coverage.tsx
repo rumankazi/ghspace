@@ -12,10 +12,15 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
  */
 export function InstallationCoveragePanel({
   coverage,
-  installUrl,
+  canInstall,
 }: {
   coverage: InstallationCoverage[];
-  installUrl: string | null;
+  /**
+   * False when `GH_APP_SLUG` is unset. The control is replaced with an
+   * explanation rather than hidden — a missing button reads as a missing
+   * feature, when it is really a deployment that is not finished.
+   */
+  canInstall: boolean;
 }) {
   const repositories = coverage.reduce((sum, c) => sum + c.repositoryCount, 0);
 
@@ -28,24 +33,26 @@ export function InstallationCoveragePanel({
             ? "no accounts connected"
             : `${coverage.length} account${coverage.length === 1 ? "" : "s"} · ${repositories} repositor${repositories === 1 ? "y" : "ies"}`}
         </span>
-        {installUrl ? (
+        {canInstall ? (
+          // Routed through the app rather than straight to GitHub so the install
+          // carries a state parameter and the callback can sync on the way back.
           <a
-            href={installUrl}
-            target="_blank"
-            rel="noreferrer"
+            href="/api/auth/install"
             className="text-muted-foreground hover:text-foreground ml-auto inline-flex items-center gap-1 text-xs hover:underline"
           >
             <CirclePlus className="size-3.5" aria-hidden />
             Add an organization
           </a>
-        ) : null}
+        ) : (
+          <span className="text-muted-foreground ml-auto text-xs">
+            Set <code>GH_APP_SLUG</code> to enable installing
+          </span>
+        )}
       </header>
 
       {coverage.length === 0 ? (
         <p className="text-muted-foreground px-4 py-4 text-xs leading-relaxed">
-          ghspace is not installed on any account yet, so there is nothing to show. Pull
-          requests only appear for accounts where the app is installed — installing it on
-          the organizations you work in is what makes their work visible.
+          Nothing is connected yet, so there is nothing to show here.
         </p>
       ) : (
         <>

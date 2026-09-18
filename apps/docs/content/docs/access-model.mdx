@@ -77,6 +77,59 @@ wrong in the codebase.
 only call that knows what one person is entitled to. Rows not reasserted by a
 run are swept, which is how revoked access actually takes effect.
 
+## Onboarding flow
+
+Because installation *is* the onboarding, the sign-in flow has to carry it.
+A user with no installations is sent to `/setup` rather than to an empty
+dashboard, and every install link in the interface points at
+`/api/auth/install` rather than at GitHub directly.
+
+That indirection buys two things.
+
+### The `state` parameter, and where it disappears
+
+`/api/auth/install` issues a `state` and appends it to the install URL. GitHub
+[returns it after the install](https://docs.github.com/en/apps/sharing-github-apps/sharing-your-github-app),
+so a site-initiated install is CSRF-protected exactly like a normal sign-in.
+
+An install begun on **GitHub's own app page** cannot be. With *"Request user
+authorization (OAuth) during installation"* enabled, GitHub builds the
+`/login/oauth/authorize` URL itself and redirects to the first callback URL
+with only a `code` — ghspace never got to issue a state, so none comes back.
+
+<Callout type="warn">
+The callback must not simply skip the state check when one is missing. The
+`code` is a working authorization code, so accepting it unverified would let a
+crafted link sign a victim's browser in **as the attacker**.
+</Callout>
+
+So a callback carrying `setup_action` but no valid state is redirected to
+`/api/auth/login`, starting a fresh, state-protected round trip. The user sees
+nothing: GitHub does not prompt again for an app they just authorised. Before
+this existed, that path failed outright with *"Sign-in link expired or was
+tampered with"* — installing from GitHub's app page was a dead end.
+
+### `installation_id` is not evidence
+
+GitHub is explicit that
+[the parameter can be spoofed](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/about-the-setup-url)
+and must not be relied on. ghspace uses it for nothing at all; `setup_action`
+is read only as a hint that *an* install happened.
+
+What it actually believes comes from `syncUserAccess`, which asks GitHub with
+that user's own token. The callback runs it when an install just happened or
+when the user has no coverage yet, which is also what makes a fresh
+installation visible: `user_installations` is written there and nowhere else,
+and `listInstallationsForSync` joins through that table — so without this, the
+worker would never learn the new installation existed and the user would have
+to press Refresh to bootstrap themselves.
+
+It is deliberately skipped for a returning user who already has coverage, whose
+access is already known; re-listing it on every sign-in would spend their
+personal rate limit to learn nothing. The pull request sync is left to the
+worker rather than run inline, since a large organisation can take tens of
+seconds — long enough to exceed a serverless function timeout.
+
 ## Token lifecycle
 
 **User tokens** expire in roughly 8 hours, refreshed with a token valid for
