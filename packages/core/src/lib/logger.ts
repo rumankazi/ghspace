@@ -1,7 +1,24 @@
-import { env } from "../env.ts";
-
 const LEVELS = { debug: 10, info: 20, warn: 30, error: 40 } as const;
 export type Level = keyof typeof LEVELS;
+
+/**
+ * Reads `LOG_LEVEL` straight from the environment rather than through `env()`.
+ *
+ * Logging must work everywhere, including in processes that legitimately have
+ * almost no configuration — `db:migrate` needs a database URL and nothing else,
+ * and CI deliberately runs it without GitHub App credentials. Routing the log
+ * level through the full schema made emitting a single line require every
+ * credential in the application, so migrations failed with a list of unrelated
+ * missing variables.
+ *
+ * An unrecognised or absent value falls back to `info` rather than throwing:
+ * a logger that refuses to start denies you the very output that would explain
+ * why.
+ */
+function threshold(): number {
+  const configured = process.env.LOG_LEVEL as Level | undefined;
+  return configured && configured in LEVELS ? LEVELS[configured] : LEVELS.info;
+}
 
 /**
  * Structured logs, rendered for whoever is reading them.
@@ -36,7 +53,7 @@ function formatValue(value: unknown): string {
 }
 
 function emit(level: Level, message: string, fields?: Record<string, unknown>) {
-  if (LEVELS[level] < LEVELS[env().LOG_LEVEL]) return;
+  if (LEVELS[level] < threshold()) return;
 
   const toStderr = level === "error" || level === "warn";
 

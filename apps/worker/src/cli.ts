@@ -46,12 +46,25 @@ const targets = login
   : await db().select({ id: users.id, login: users.githubLogin }).from(users);
 
 if (targets.length === 0) {
-  log.error(
-    login ? `No user with login ${login}.` : "No users registered yet.",
-    { hint: "Sign in at http://localhost:3000 first." },
-  );
+  if (login) {
+    // An explicit login that does not exist is a mistake worth failing on.
+    log.error(`No user with login ${login}.`, {
+      hint: "Check the spelling, or sign in as that user first.",
+    });
+    await closeDb();
+    process.exit(1);
+  }
+
+  // No users at all is a legitimate state, not a failure: a freshly deployed
+  // instance has nobody signed in yet. Exiting non-zero here would turn the
+  // scheduled workflow red every five minutes until someone did, which trains
+  // you to ignore the one signal that would tell you a sync is genuinely
+  // broken.
+  log.warn("No users registered yet; nothing to sync.", {
+    hint: "Sign in to the deployment to create a user record.",
+  });
   await closeDb();
-  process.exit(1);
+  process.exit(0);
 }
 
 const startedAt = Date.now();
