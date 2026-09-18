@@ -221,6 +221,12 @@ export const pullRequests = pgTable(
 
     authorLogin: text(),
     authorAvatarUrl: text(),
+    /**
+     * From GraphQL's `__typename` on the author, which is the only reliable
+     * signal — the login alone does not carry the `[bot]` suffix, and plenty of
+     * humans have bot-like names.
+     */
+    authorIsBot: boolean().notNull().default(false),
 
     additions: integer().notNull().default(0),
     deletions: integer().notNull().default(0),
@@ -317,7 +323,8 @@ export type TriageBucket =
   | "ready_to_merge"
   | "blocked_on_others"
   | "drafts"
-  | "watching";
+  | "watching"
+  | "dependency_updates";
 
 /**
  * Links a user to a PR and records the reason. GitHub's `involves:@me` is a
@@ -344,6 +351,15 @@ export const pullRequestInvolvement = pgTable(
     isMentioned: boolean().notNull().default(false),
     /** Has already submitted at least one review. */
     hasReviewed: boolean().notNull().default(false),
+    /**
+     * The repository belongs to this user's own account.
+     *
+     * Not an involvement signal GitHub recognises, but decisive in practice: a
+     * bot's dependency bump in your own repository names you nowhere, yet
+     * nobody else is going to merge it. Without this the triage view silently
+     * omits most of a solo developer's actual queue.
+     */
+    isRepositoryOwner: boolean().notNull().default(false),
 
     bucket: text().$type<TriageBucket>().notNull(),
 

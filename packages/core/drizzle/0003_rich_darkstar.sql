@@ -1,0 +1,2 @@
+ALTER TABLE "pull_request_involvement" ADD COLUMN "is_repository_owner" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+ALTER TABLE "pull_requests" ADD COLUMN "author_is_bot" boolean DEFAULT false NOT NULL;

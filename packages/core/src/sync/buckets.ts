@@ -11,6 +11,10 @@ export interface BucketInput {
   /** A *pending* review request — GitHub drops you from the list once you review. */
   isReviewRequested: boolean;
   isAssigned: boolean;
+  /** The repository belongs to this user's own account. */
+  isRepositoryOwner: boolean;
+  /** The author is a GitHub App or bot account rather than a person. */
+  authorIsBot: boolean;
   isDraft: boolean;
   state: PullRequestState;
   reviewDecision: ReviewDecision | null;
@@ -33,6 +37,20 @@ export function classify(input: BucketInput): TriageBucket {
   // Closed or merged PRs are history. They are only ever stored because the
   // user asked to see them, so they never claim an action bucket.
   if (input.state !== "OPEN") return "watching";
+
+  // A bot's dependency bump in a repository you own. Nobody else will merge it,
+  // so it is yours — but it is a different kind of work from reviewing a
+  // colleague's change, and there are usually far more of them.
+  //
+  // Checked *before* review requests on purpose. Renovate and Dependabot are
+  // routinely configured with `reviewers:` and `assignees:`, so those signals
+  // are themselves automated: honouring them would funnel the entire dependency
+  // queue into "Blocked on you" and defeat the separation. A human asking for
+  // review on a bot's bump in your own repository is not a case worth
+  // optimising for.
+  if (input.authorIsBot && input.isRepositoryOwner && !input.isAuthor) {
+    return "dependency_updates";
+  }
 
   // Someone is waiting on this person specifically. This is the highest-value
   // signal on the page and outranks everything except the PR not being ready.
@@ -69,6 +87,11 @@ export function classify(input: BucketInput): TriageBucket {
   // Assigned without a review request still implies ownership of something.
   if (input.isAssigned) return "needs_your_action";
 
+  // Somebody else's change to a repository you own, with no formal review
+  // request. GitHub would not call this involvement, but nothing moves until
+  // you look at it.
+  if (input.isRepositoryOwner) return "blocked_on_you";
+
   // Mentioned, commented, or previously reviewed: worth seeing, not worth doing.
   return "watching";
 }
@@ -81,7 +104,12 @@ export const BUCKET_ORDER: readonly TriageBucket[] = [
   "blocked_on_others",
   "drafts",
   "watching",
+  // Last: individually the least urgent, and usually the most numerous.
+  "dependency_updates",
 ] as const;
+
+/** Buckets that open collapsed, because they are routinely large and low-stakes. */
+export const COLLAPSED_BY_DEFAULT: readonly TriageBucket[] = ["dependency_updates"] as const;
 
 export const BUCKET_LABELS: Record<TriageBucket, string> = {
   blocked_on_you: "Blocked on you",
@@ -90,13 +118,16 @@ export const BUCKET_LABELS: Record<TriageBucket, string> = {
   blocked_on_others: "Blocked on others",
   drafts: "Your drafts",
   watching: "Watching",
+  dependency_updates: "Dependency updates",
 };
 
 export const BUCKET_DESCRIPTIONS: Record<TriageBucket, string> = {
-  blocked_on_you: "Your review has been requested and nobody can move without it.",
+  blocked_on_you:
+    "Waiting on you — a requested review, or a change to a repository you own.",
   needs_your_action: "Changes requested, failing checks, or a merge conflict on your work.",
   ready_to_merge: "Approved, green, and mergeable.",
   blocked_on_others: "Your open pull requests waiting on someone else's review.",
   drafts: "Work in progress you have not opened for review yet.",
   watching: "You are mentioned, assigned, or have already reviewed.",
+  dependency_updates: "Automated bumps in your repositories. Nobody else will merge these.",
 };

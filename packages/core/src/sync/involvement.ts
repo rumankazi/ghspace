@@ -6,6 +6,7 @@ import {
   pullRequestReviewRequests,
   pullRequestReviews,
   pullRequests,
+  repositories,
   type ChecksState,
   type MergeableState,
   type ReviewDecision,
@@ -50,6 +51,14 @@ export async function recomputeInvolvement(
     .where(inArray(pullRequests.repositoryId, repositoryIds));
   if (prs.length === 0) return 0;
 
+  // Owning the repository is itself an involvement signal — see the bot case
+  // in `classify`. The owner login is compared against each user's own login.
+  const repoRows = await tx
+    .select({ id: repositories.id, owner: repositories.owner })
+    .from(repositories)
+    .where(inArray(repositories.id, repositoryIds));
+  const ownerByRepo = new Map(repoRows.map((r) => [r.id, r.owner]));
+
   const prIds = prs.map((pr) => pr.id);
 
   // Sequential, not Promise.all. A transaction is pinned to a single
@@ -89,10 +98,19 @@ export async function recomputeInvolvement(
       const isReviewRequested = requestedByPr.get(pr.id)?.has(login) ?? false;
       const isAssigned = assigneesByPr.get(pr.id)?.has(login) ?? false;
       const hasReviewed = reviewersByPr.get(pr.id)?.has(login) ?? false;
+      const isRepositoryOwner = ownerByRepo.get(pr.repositoryId) === login;
 
       // No relationship means no row. The dashboard is a list of things that
       // involve you; every other PR in the repo belongs to the browse view.
-      if (!isAuthor && !isReviewRequested && !isAssigned && !hasReviewed) continue;
+      if (
+        !isAuthor &&
+        !isReviewRequested &&
+        !isAssigned &&
+        !hasReviewed &&
+        !isRepositoryOwner
+      ) {
+        continue;
+      }
 
       rows.push({
         userId: user.id,
@@ -103,10 +121,13 @@ export async function recomputeInvolvement(
         // Only the search-based recovery path can populate this.
         isMentioned: false,
         hasReviewed,
+        isRepositoryOwner,
         bucket: classify({
           isAuthor,
           isReviewRequested,
           isAssigned,
+          isRepositoryOwner,
+          authorIsBot: pr.authorIsBot,
           isDraft: pr.isDraft,
           state: pr.state,
           reviewDecision: pr.reviewDecision as ReviewDecision | null,
@@ -135,6 +156,7 @@ export async function recomputeInvolvement(
           isAssigned: sqlExcluded("is_assigned"),
           isMentioned: sqlExcluded("is_mentioned"),
           hasReviewed: sqlExcluded("has_reviewed"),
+          isRepositoryOwner: sqlExcluded("is_repository_owner"),
           bucket: sqlExcluded("bucket"),
           lastSeenAt: seenAt,
         },

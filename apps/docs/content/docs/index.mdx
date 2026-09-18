@@ -64,13 +64,38 @@ assumed.
 
 | Bucket | Means |
 | --- | --- |
-| **Blocked on you** | Your review is requested and nobody can move without it |
+| **Blocked on you** | Waiting on you — a requested review, or a change to a repository you own |
 | **Needs your action** | Changes requested, failing checks, or a merge conflict on your work |
 | **Ready to merge** | Approved, green, mergeable |
 | **Blocked on others** | Your open pull requests waiting on a review |
 | **Your drafts** | Work in progress you have not opened for review |
 | **Watching** | You are assigned, or have already reviewed |
+| **Dependency updates** | Automated bumps in repositories you own |
 
 The rules live in one pure function, `classify()` in
 `packages/core/src/sync/buckets.ts`, so they are cheap to test and easy to argue
 about. They are covered by unit tests.
+
+### Why bots get their own bucket
+
+GitHub does not consider you "involved" in a Renovate or Dependabot pull request
+in your own repository — you did not open it, you are not assigned, and no
+review was requested of you. For a solo developer that omits most of the real
+queue, since nobody else is going to merge those.
+
+`isRepositoryOwner` supplies the missing signal, and bot-authored bumps get
+their own bucket rather than flowing into the ordinary ones: there are usually
+many of them and they are a different kind of work from reviewing a colleague's
+change.
+
+<Callout type="warn">
+That rule is checked **before** review requests, which looks wrong until you see
+real data. Renovate and Dependabot are routinely configured with `reviewers:`
+and `assignees:`, so honouring those signals funnels the entire dependency queue
+into "Blocked on you" and destroys the separation. On the author's own account,
+9 of 38 bumps carried an automated review request.
+</Callout>
+
+The bucket opens collapsed, but its closed header still reports how many pull
+requests are failing or conflicting, and those sort first inside it — a broken
+bump must not be able to hide behind thirty green ones.

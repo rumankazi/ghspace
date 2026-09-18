@@ -505,10 +505,13 @@ async function seed(): Promise<void> {
         isAssigned,
         isMentioned: false,
         hasReviewed,
+        isRepositoryOwner: false,
         bucket: classify({
           isAuthor,
           isReviewRequested,
           isAssigned,
+          isRepositoryOwner: false,
+          authorIsBot: false,
           isDraft: values.isDraft,
           state: values.state,
           reviewDecision: values.reviewDecision,

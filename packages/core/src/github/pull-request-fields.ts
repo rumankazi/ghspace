@@ -27,6 +27,7 @@ export const PR_FIELDS = /* GraphQL */ `
     reviewDecision
     mergeable
     author {
+      __typename
       login
       avatarUrl
     }
@@ -89,7 +90,11 @@ export const PR_FIELDS = /* GraphQL */ `
 `;
 
 const actor = z
-  .object({ login: z.string(), avatarUrl: z.string().optional() })
+  .object({
+    __typename: z.string().optional(),
+    login: z.string(),
+    avatarUrl: z.string().optional(),
+  })
   .nullable()
   .optional();
 

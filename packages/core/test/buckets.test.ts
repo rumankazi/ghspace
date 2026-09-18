@@ -6,6 +6,8 @@ function input(overrides: Partial<BucketInput> = {}): BucketInput {
     isAuthor: false,
     isReviewRequested: false,
     isAssigned: false,
+    isRepositoryOwner: false,
+    authorIsBot: false,
     isDraft: false,
     state: "OPEN",
     reviewDecision: null,
@@ -102,6 +104,72 @@ describe("classify", () => {
     }
   });
 
+  describe("repositories you own", () => {
+    test("a bot's dependency bump becomes its own bucket", () => {
+      expect(classify(input({ isRepositoryOwner: true, authorIsBot: true }))).toBe(
+        "dependency_updates",
+      );
+    });
+
+    test("a failing bot bump stays in the dependency bucket", () => {
+      // Grouping beats severity here: the whole point is to keep a large,
+      // uniform queue out of the buckets that represent real decisions.
+      expect(
+        classify(input({ isRepositoryOwner: true, authorIsBot: true, checksState: "FAILURE" })),
+      ).toBe("dependency_updates");
+    });
+
+    test("an automated review request does not promote a bump out of the bucket", () => {
+      // Renovate and Dependabot are routinely configured with `reviewers:` and
+      // `assignees:`, so honouring those would funnel the whole dependency
+      // queue into "Blocked on you" — which is the separation this bucket
+      // exists to provide.
+      expect(
+        classify(
+          input({ isRepositoryOwner: true, authorIsBot: true, isReviewRequested: true }),
+        ),
+      ).toBe("dependency_updates");
+      expect(
+        classify(input({ isRepositoryOwner: true, authorIsBot: true, isAssigned: true })),
+      ).toBe("dependency_updates");
+    });
+
+    test("a human review request elsewhere is untouched by that rule", () => {
+      expect(
+        classify(input({ isRepositoryOwner: false, authorIsBot: false, isReviewRequested: true })),
+      ).toBe("blocked_on_you");
+    });
+
+    test("a bot pull request elsewhere is not yours to merge", () => {
+      expect(classify(input({ isRepositoryOwner: false, authorIsBot: true }))).toBe("watching");
+    });
+
+    test("your own pull request in your own repository follows the normal rules", () => {
+      expect(
+        classify(
+          input({
+            isRepositoryOwner: true,
+            isAuthor: true,
+            reviewDecision: "APPROVED",
+            checksState: "SUCCESS",
+          }),
+        ),
+      ).toBe("ready_to_merge");
+    });
+
+    test("a person's pull request on your repository is waiting on you", () => {
+      expect(classify(input({ isRepositoryOwner: true, authorIsBot: false }))).toBe(
+        "blocked_on_you",
+      );
+    });
+
+    test("a closed bot bump is history, not a queue item", () => {
+      expect(
+        classify(input({ isRepositoryOwner: true, authorIsBot: true, state: "MERGED" })),
+      ).toBe("watching");
+    });
+  });
+
   test("every reachable bucket is present in the display order", () => {
     expect(new Set(BUCKET_ORDER).size).toBe(BUCKET_ORDER.length);
     const reachable = new Set([
@@ -110,6 +178,7 @@ describe("classify", () => {
       classify(input({ isAuthor: true, reviewDecision: "CHANGES_REQUESTED" })),
       classify(input({ isAuthor: true, reviewDecision: "APPROVED", checksState: "SUCCESS" })),
       classify(input({ isAuthor: true })),
+      classify(input({ isRepositoryOwner: true, authorIsBot: true })),
       classify(input()),
     ]);
     for (const bucket of reachable) expect(BUCKET_ORDER).toContain(bucket);

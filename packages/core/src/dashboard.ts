@@ -14,7 +14,12 @@ import {
   type SyncStatus,
   type TriageBucket,
 } from "./db/schema.ts";
-import { BUCKET_DESCRIPTIONS, BUCKET_LABELS, BUCKET_ORDER } from "./sync/buckets.ts";
+import {
+  BUCKET_DESCRIPTIONS,
+  BUCKET_LABELS,
+  BUCKET_ORDER,
+  COLLAPSED_BY_DEFAULT,
+} from "./sync/buckets.ts";
 import { INSTALLATION_SYNC_KIND } from "./sync/installation-sync.ts";
 
 export interface DashboardPullRequest {
@@ -66,6 +71,15 @@ function visibleToUser(userId: string) {
           eq(userRepositoryAccess.repositoryId, pullRequests.repositoryId),
         ),
       ),
+  );
+}
+
+/** A pull request that will not merge as it stands. */
+function needsAttention(pr: DashboardPullRequest): boolean {
+  return (
+    pr.checksState === "FAILURE" ||
+    pr.checksState === "ERROR" ||
+    pr.mergeable === "CONFLICTING"
   );
 }
 
@@ -158,6 +172,10 @@ export interface DashboardBucket {
   label: string;
   description: string;
   pullRequests: DashboardPullRequest[];
+  /** Routinely large and low-stakes; the UI opens these closed. */
+  collapsed: boolean;
+  /** Failing checks or a merge conflict — worth surfacing on a closed bucket. */
+  needsAttentionCount: number;
 }
 
 export interface SyncState {
@@ -224,12 +242,28 @@ export async function getDashboard(userId: string): Promise<Dashboard> {
     else byBucket.set(bucket, [pr]);
   }
 
-  const buckets = BUCKET_ORDER.map((key) => ({
-    key,
-    label: BUCKET_LABELS[key],
-    description: BUCKET_DESCRIPTIONS[key],
-    pullRequests: byBucket.get(key) ?? [],
-  }));
+  const buckets = BUCKET_ORDER.map((key) => {
+    const contents = byBucket.get(key) ?? [];
+
+    // Unhealthy first inside a bucket that opens collapsed: a bump with failing
+    // checks must not be able to hide behind thirty green ones.
+    const ordered = COLLAPSED_BY_DEFAULT.includes(key)
+      ? [...contents].sort(
+          (a, b) =>
+            Number(needsAttention(b)) - Number(needsAttention(a)) ||
+            b.updatedAt.getTime() - a.updatedAt.getTime(),
+        )
+      : contents;
+
+    return {
+      key,
+      label: BUCKET_LABELS[key],
+      description: BUCKET_DESCRIPTIONS[key],
+      pullRequests: ordered,
+      collapsed: COLLAPSED_BY_DEFAULT.includes(key),
+      needsAttentionCount: contents.filter(needsAttention).length,
+    };
+  });
 
   return { buckets, total: assembled.length, sync };
 }
