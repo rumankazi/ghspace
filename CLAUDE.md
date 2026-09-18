@@ -15,12 +15,36 @@ fix(sync): use partial GraphQL responses instead of discarding the batch
 
 Types: `feat`, `fix`, `refactor`, `perf`, `docs`, `test`, `build`, `ci`,
 `chore`. Scopes in use: `sync`, `triage`, `auth`, `worker`, `web`, `docs`,
-`db`, `cli`, `dev`. Breaking changes take a `!` before the colon.
+`db`, `cli`, `core`, `config`, `dev`. Breaking changes take a `!` before the
+colon.
 
 The body matters more than the subject. Explain *why* the change is right,
 especially when the code looks wrong without it — the reason a rule is ordered
 a particular way, or a real-world observation that drove a decision, is exactly
 what is expensive to rediscover.
+
+## Pull request titles
+
+**A pull request title is a commit subject and follows the same rules**, because
+this repository squash-merges. GitHub's squash title is set to
+`COMMIT_OR_PR_TITLE`: a single-commit pull request inherits that commit's
+subject, and everything else takes the **pull request title** verbatim. So a
+prose title on a multi-commit branch does not stay in the pull request — it
+lands on `main` as the commit message.
+
+```
+feat(auth): make installing the app part of onboarding      ← lands well
+Make installing the app part of the sign-in flow            ← breaks `main`
+```
+
+That second one is not hypothetical; it is
+[2d67509](https://github.com/rumankazi/ghspace/commit/2d67509), the one
+non-conforming subject in the history, and it got there exactly this way.
+
+The description carries what a commit body would: why the change is right, and
+what a reviewer would otherwise have to reconstruct. Say plainly what is *not*
+covered — a path that could not be exercised locally is worth more to a
+reviewer than a list of what passed.
 
 ## The one rule that must not be broken
 
