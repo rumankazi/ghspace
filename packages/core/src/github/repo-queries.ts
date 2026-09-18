@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { GitHubClient, RateLimitSnapshot } from "./client.ts";
-import { toRateLimitSnapshot } from "./client.ts";
+import { graphqlAllowingPartial, toRateLimitSnapshot } from "./client.ts";
 import { PR_FIELDS, prNode, type PullRequestNode } from "./pull-request-fields.ts";
 import { log } from "../lib/logger.ts";
 
@@ -186,10 +186,12 @@ export async function fetchOpenPullRequests(
       variables[`name${i}`] = repo.name;
     });
 
-    const raw = (await client.graphql(buildBatchQuery(batch.length), variables)) as Record<
-      string,
-      unknown
-    >;
+    const raw = await graphqlAllowingPartial<Record<string, unknown>>(
+      client,
+      buildBatchQuery(batch.length),
+      variables,
+      { repositories: batch.map((r) => `${r.owner}/${r.name}`) },
+    );
     record(toRateLimitSnapshot(raw.rateLimit));
 
     for (let i = 0; i < batch.length; i++) {
@@ -232,11 +234,12 @@ async function paginateRepository(
   let after: string | null = startCursor;
 
   for (let page = 0; page < MAX_PAGES_PER_REPO && after; page++) {
-    const raw = (await client.graphql(SINGLE_REPO_QUERY, {
-      owner: repo.owner,
-      name: repo.name,
-      after,
-    })) as Record<string, unknown>;
+    const raw = await graphqlAllowingPartial<Record<string, unknown>>(
+      client,
+      SINGLE_REPO_QUERY,
+      { owner: repo.owner, name: repo.name, after },
+      { repository: `${repo.owner}/${repo.name}` },
+    );
     record(toRateLimitSnapshot(raw.rateLimit));
 
     const parsed = repoResult.safeParse(

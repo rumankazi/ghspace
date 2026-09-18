@@ -41,8 +41,13 @@ function sqlExcluded(column: string) {
   return sql.raw(`excluded."${column}"`);
 }
 
+/**
+ * Null when there is no CI, and also when the installation may not read the
+ * head commit — both mean "no verdict available", which the triage rules
+ * already treat as not-failing.
+ */
 function checksStateOf(node: PullRequestNode): ChecksState | null {
-  return node.commits?.nodes[0]?.commit.statusCheckRollup?.state ?? null;
+  return node.commits?.nodes[0]?.commit?.statusCheckRollup?.state ?? null;
 }
 
 /**

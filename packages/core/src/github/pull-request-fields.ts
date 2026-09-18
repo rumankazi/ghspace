@@ -157,21 +157,27 @@ export const prNode = z.object({
       ),
     })
     .optional(),
+  // The node is nullable because a head commit the installation may not read
+  // comes back as `null` alongside a FORBIDDEN error. Rejecting it here would
+  // drop the whole pull request over a missing CI verdict.
   commits: z
     .object({
       nodes: z.array(
-        z.object({
-          commit: z.object({
-            statusCheckRollup: z
-              .object({
-                state: z.enum(["EXPECTED", "ERROR", "FAILURE", "PENDING", "SUCCESS"]),
-              })
-              .nullable()
-              .optional(),
-          }),
-        }),
+        z
+          .object({
+            commit: z.object({
+              statusCheckRollup: z
+                .object({
+                  state: z.enum(["EXPECTED", "ERROR", "FAILURE", "PENDING", "SUCCESS"]),
+                })
+                .nullable()
+                .optional(),
+            }),
+          })
+          .nullable(),
       ),
     })
+    .nullable()
     .optional(),
 });
 

@@ -98,3 +98,66 @@ export function toRateLimitSnapshot(raw: unknown): RateLimitSnapshot | undefined
     resetAt: new Date(r.resetAt),
   };
 }
+
+// ---------------------------------------------------------------------------
+// Partial responses
+// ---------------------------------------------------------------------------
+
+interface PartialGraphqlError {
+  name?: string;
+  data?: unknown;
+  errors?: { type?: string; message?: string; path?: (string | number)[] }[];
+}
+
+/**
+ * GraphQL answers a query that is partly forbidden with *both* data and errors,
+ * and Octokit surfaces that as a thrown `GraphqlResponseError` carrying the
+ * partial result on `.data`.
+ *
+ * Letting it throw would be badly wrong here. Pull requests are fetched ten
+ * repositories at a time, so one repository the app cannot fully read would
+ * discard the other nine — and it would do so on every cycle, which reads as
+ * "those repositories do not exist" rather than as a permissions problem.
+ *
+ * The common trigger is a head commit the installation may not read (the
+ * `commits` field), which costs only the CI verdict for that pull request.
+ * Everything else in the response is still good, so it is used.
+ */
+export async function graphqlAllowingPartial<T>(
+  client: GitHubClient,
+  query: string,
+  variables: Record<string, unknown>,
+  context: Record<string, unknown> = {},
+): Promise<T> {
+  try {
+    return (await client.graphql(query, variables)) as T;
+  } catch (error) {
+    // Structural rather than `instanceof`: two copies of @octokit/graphql in a
+    // dependency tree would break an identity check, silently turning partial
+    // responses back into hard failures.
+    const candidate = error as PartialGraphqlError;
+    if (
+      candidate?.name !== "GraphqlResponseError" ||
+      candidate.data === undefined ||
+      candidate.data === null
+    ) {
+      throw error;
+    }
+
+    // One line per distinct field, not per affected node: a repository with
+    // forty such pull requests should not produce forty log lines.
+    const fields = new Set(
+      (candidate.errors ?? []).map((e) =>
+        (e.path ?? []).filter((part) => typeof part === "string").join("."),
+      ),
+    );
+    log.warn("graphql returned partial data; using it", {
+      ...context,
+      errorCount: candidate.errors?.length ?? 0,
+      fields: [...fields],
+      firstMessage: candidate.errors?.[0]?.message,
+    });
+
+    return candidate.data as T;
+  }
+}

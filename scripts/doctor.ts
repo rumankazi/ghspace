@@ -253,54 +253,120 @@ if (appOctokit) {
       });
       ok("repositories visible", String(repos.data.total_count));
 
-      const probe = repos.data.repositories.find((r) => !r.archived);
-      if (!probe) {
+      // Sampling the first repository is no good: most repositories have no
+      // open pull requests, and landing on one skips the field checks that
+      // matter. Ask several at once for a count, then probe one that has some.
+      const candidates = repos.data.repositories.filter((r) => !r.archived).slice(0, 30);
+
+      if (candidates.length === 0) {
         warn("pull request probe", "no non-archived repositories to sample");
       } else {
-        const result = (await installationClient.graphql(
-          `query($owner: String!, $name: String!) {
-             rateLimit { remaining cost }
-             repository(owner: $owner, name: $name) {
-               pullRequests(states: OPEN, first: 1, orderBy: { field: UPDATED_AT, direction: DESC }) {
-                 totalCount
-                 nodes {
-                   number title reviewDecision mergeable
-                   commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
-                 }
-               }
-             }
-           }`,
-          { owner: probe.owner.login, name: probe.name },
-        )) as {
-          rateLimit?: { remaining: number; cost: number };
-          repository?: {
-            pullRequests: {
-              totalCount: number;
-              nodes: {
-                number: number;
-                title: string;
-                reviewDecision: string | null;
-                mergeable: string | null;
-                commits: { nodes: { commit: { statusCheckRollup: { state: string } | null } }[] };
-              }[];
-            };
+        const params = candidates
+          .map((_, i) => `$owner${i}: String!, $name${i}: String!`)
+          .join(", ");
+        const bodies = candidates
+          .map(
+            (_, i) => `r${i}: repository(owner: $owner${i}, name: $name${i}) {
+              nameWithOwner
+              pullRequests(states: OPEN, first: 1, orderBy: { field: UPDATED_AT, direction: DESC }) {
+                totalCount
+                nodes {
+                  number title reviewDecision mergeable
+                  commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
+                }
+              }
+            }`,
+          )
+          .join("\n");
+
+        const variables: Record<string, string> = {};
+        candidates.forEach((repo, i) => {
+          variables[`owner${i}`] = repo.owner.login;
+          variables[`name${i}`] = repo.name;
+        });
+
+        let forbiddenCommits = 0;
+        let scan: Record<string, unknown>;
+        try {
+          scan = (await installationClient.graphql(
+            `query Probe(${params}) {
+               rateLimit { remaining cost }
+               ${bodies}
+             }`,
+            variables,
+          )) as Record<string, unknown>;
+        } catch (error) {
+          // GitHub returns data *and* errors when part of a query is
+          // forbidden. Treating that as a failure would hide a working setup.
+          const partial = error as {
+            name?: string;
+            data?: Record<string, unknown>;
+            errors?: { path?: (string | number)[] }[];
+          };
+          if (partial?.name !== "GraphqlResponseError" || !partial.data) throw error;
+          scan = partial.data;
+          forbiddenCommits = (partial.errors ?? []).filter((e) =>
+            (e.path ?? []).includes("commits"),
+          ).length;
+        }
+
+        const rateLimit = scan.rateLimit as { remaining: number; cost: number } | undefined;
+        ok("graphql reachable", `scanned ${candidates.length} repositories`);
+        ok("rate limit", `${rateLimit?.remaining ?? "?"} points remaining, cost ${rateLimit?.cost ?? "?"}`);
+
+        type ProbeRepo = {
+          nameWithOwner: string;
+          pullRequests: {
+            totalCount: number;
+            nodes: {
+              number: number;
+              title: string;
+              reviewDecision: string | null;
+              mergeable: string | null;
+              commits: { nodes: { commit: { statusCheckRollup: { state: string } | null } }[] };
+            }[];
           };
         };
 
-        const pr = result.repository?.pullRequests.nodes[0];
-        ok("graphql reachable", `${probe.full_name}, ${result.repository?.pullRequests.totalCount ?? 0} open`);
-        ok("rate limit", `${result.rateLimit?.remaining ?? "?"} points remaining`);
+        let totalOpen = 0;
+        let sample: { repo: string; pr: ProbeRepo["pullRequests"]["nodes"][number] } | undefined;
+        for (let i = 0; i < candidates.length; i++) {
+          const entry = scan[`r${i}`] as ProbeRepo | null;
+          if (!entry) continue;
+          totalOpen += entry.pullRequests.totalCount;
+          const node = entry.pullRequests.nodes[0];
+          if (node && !sample) sample = { repo: entry.nameWithOwner, pr: node };
+        }
 
-        if (!pr) {
-          warn("field check", `${probe.full_name} has no open pull requests to sample`);
+        ok("open pull requests", `${totalOpen} across the scanned repositories`);
+
+        if (forbiddenCommits > 0) {
+          warn(
+            "commit access",
+            `${forbiddenCommits} pull request${forbiddenCommits === 1 ? "" : "s"} would not expose the head commit`,
+            "Those pull requests sync without a CI verdict, so they cannot reach \"Ready to merge\". Granting the app Contents: Read-only usually resolves it.",
+          );
+        }
+
+        if (!sample) {
+          warn(
+            "field check",
+            "no open pull requests in any scanned repository",
+            "Open a pull request somewhere, or re-run this once you have one, to confirm the CI fields arrive.",
+          );
         } else {
-          const rollup = pr.commits.nodes[0]?.commit.statusCheckRollup?.state ?? null;
-          console.log(`  ${DIM}  sampled #${pr.number}: ${pr.title.slice(0, 48)}${RESET}`);
-          ok("reviewDecision", String(pr.reviewDecision));
-          ok("mergeable", String(pr.mergeable));
+          const rollup = sample.pr.commits.nodes[0]?.commit.statusCheckRollup?.state ?? null;
+          console.log(
+            `  ${DIM}  sampled ${sample.repo} #${sample.pr.number}: ${sample.pr.title.slice(0, 44)}${RESET}`,
+          );
+          ok("reviewDecision", String(sample.pr.reviewDecision));
+          ok("mergeable", String(sample.pr.mergeable));
           if (rollup === null) {
-            warn("statusCheckRollup", "null — either no CI on this PR, or Checks permission is missing",
-              "If this repository does run CI, grant the app Checks and Commit statuses read access.");
+            warn(
+              "statusCheckRollup",
+              "null — either this pull request has no CI, or Checks permission is missing",
+              "If this repository does run CI, confirm the app has Checks and Commit statuses read access.",
+            );
           } else {
             ok("statusCheckRollup", rollup);
           }

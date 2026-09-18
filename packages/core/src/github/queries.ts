@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { GitHubClient, RateLimitSnapshot } from "./client.ts";
-import { toRateLimitSnapshot } from "./client.ts";
+import { graphqlAllowingPartial, toRateLimitSnapshot } from "./client.ts";
 import { PR_FIELDS, prNode, type PullRequestNode } from "./pull-request-fields.ts";
 import { log } from "../lib/logger.ts";
 
@@ -74,7 +74,12 @@ export async function searchPullRequests(
   let after: string | undefined;
 
   for (let page = 0; page < maxPages; page++) {
-    const raw = await client.graphql(SEARCH_QUERY, { q: query, first: pageSize, after });
+    const raw = await graphqlAllowingPartial<unknown>(
+      client,
+      SEARCH_QUERY,
+      { q: query, first: pageSize, after },
+      { search: query },
+    );
     const parsed = searchResponse.parse(raw);
 
     rateLimit = toRateLimitSnapshot(parsed.rateLimit) ?? rateLimit;
