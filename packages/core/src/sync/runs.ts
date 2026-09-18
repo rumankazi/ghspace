@@ -34,6 +34,7 @@ export async function reapInterruptedRuns(): Promise<number> {
   if (reaped.length > 0) {
     log.warn("marked interrupted sync runs as failed", { count: reaped.length });
   }
+
   return reaped.length;
 }
 

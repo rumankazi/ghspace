@@ -20,6 +20,7 @@ export function AutoRefresh({ intervalMs = 30_000 }: { intervalMs?: number }) {
 
     const timer = setInterval(tick, intervalMs);
     document.addEventListener("visibilitychange", tick);
+
     return () => {
       clearInterval(timer);
       document.removeEventListener("visibilitychange", tick);

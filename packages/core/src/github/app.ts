@@ -16,14 +16,17 @@ const AppOctokit = Octokit.plugin(throttling, retry);
  */
 function privateKey(): string {
   const configured = env().GH_APP_PRIVATE_KEY;
+
   if (configured.includes("-----BEGIN")) return configured;
 
   const decoded = Buffer.from(configured, "base64").toString("utf8");
+
   if (!decoded.includes("-----BEGIN")) {
     throw new Error(
       "GH_APP_PRIVATE_KEY is neither a PEM nor base64-encoded PEM. Encode your .pem with: base64 -i app.private-key.pem",
     );
   }
+
   return decoded;
 }
 
@@ -68,6 +71,7 @@ export function createInstallationClient(
           retryAfter,
           retryCount,
         });
+
         return retryCount < 2;
       },
       onSecondaryRateLimit: (
@@ -82,6 +86,7 @@ export function createInstallationClient(
           retryAfter,
           retryCount,
         });
+
         return retryCount < 3;
       },
     },

@@ -48,6 +48,7 @@ export async function listInstallationRepositories(
       per_page: 100,
       page,
     });
+
     const parsed = installationReposResponse.parse(raw.data);
 
     for (const repo of parsed.repositories) {
@@ -74,8 +75,10 @@ export async function listInstallationRepositories(
 
 /** Repositories per GraphQL document. Keeps any single query's cost bounded. */
 const REPOS_PER_QUERY = 10;
+
 /** Open PRs fetched per repository per page. 100 is the GraphQL maximum. */
 const PAGE_SIZE = 100;
+
 /** Ceiling on follow-up pages for one unusually busy repository. */
 const MAX_PAGES_PER_REPO = 5;
 
@@ -176,6 +179,7 @@ export async function fetchOpenPullRequests(
   const collect = (nodes: unknown[]) => {
     for (const node of nodes) {
       const parsed = prNode.safeParse(node);
+
       if (parsed.success) pullRequests.push(parsed.data);
     }
   };
@@ -194,12 +198,14 @@ export async function fetchOpenPullRequests(
       variables,
       { repositories: batch.map((r) => `${r.owner}/${r.name}`) },
     );
+
     record(toRateLimitSnapshot(raw.rateLimit));
 
     for (let i = 0; i < batch.length; i++) {
       // A repository can disappear between listing and querying (deleted, or
       // access revoked), in which case GraphQL returns null for that alias.
       const parsed = repoResult.safeParse(raw[`r${i}`]);
+
       if (!parsed.success || parsed.data === null) continue;
 
       const { pullRequests: connectionData } = parsed.data;
@@ -207,12 +213,14 @@ export async function fetchOpenPullRequests(
 
       if (connectionData.pageInfo.hasNextPage && connectionData.pageInfo.endCursor) {
         const repo = batch[i]!;
+
         const extra = await paginateRepository(
           client,
           repo,
           connectionData.pageInfo.endCursor,
           record,
         );
+
         pullRequests.push(...extra);
       }
     }
@@ -244,6 +252,7 @@ async function paginateRepository(
       { owner: repo.owner, name: repo.name, after },
       { repository: `${repo.owner}/${repo.name}` },
     );
+
     record(toRateLimitSnapshot(raw.rateLimit));
 
     const parsed = repoResult.safeParse(
@@ -251,10 +260,12 @@ async function paginateRepository(
         ? null
         : { id: "", nameWithOwner: "", ...(raw.repository as object) },
     );
+
     if (!parsed.success || parsed.data === null) break;
 
     for (const node of parsed.data.pullRequests.nodes) {
       const pr = prNode.safeParse(node);
+
       if (pr.success) collected.push(pr.data);
     }
 

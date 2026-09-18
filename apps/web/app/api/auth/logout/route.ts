@@ -11,13 +11,16 @@ const REASONS: Record<string, string> = {
 function signedOut(reason: string | null) {
   const url = new URL(appBaseUrl());
   const message = reason ? REASONS[reason] : undefined;
+
   if (message) url.searchParams.set("error", message);
+
   return NextResponse.redirect(url, { status: 303 });
 }
 
 /** The sign-out button. */
 export async function POST(request: NextRequest) {
   await destroySession();
+
   return signedOut(request.nextUrl.searchParams.get("reason"));
 }
 
@@ -35,5 +38,6 @@ export async function POST(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   await destroySession();
+
   return signedOut(request.nextUrl.searchParams.get("reason"));
 }

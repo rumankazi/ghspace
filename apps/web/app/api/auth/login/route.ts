@@ -8,5 +8,6 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const state = await issueState();
   const redirectUri = `${appBaseUrl()}/api/auth/callback`;
+
   return NextResponse.redirect(authorizeUrl(state, redirectUri));
 }

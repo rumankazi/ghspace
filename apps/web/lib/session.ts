@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { appBaseUrl, isProduction, sessionSecret } from "./env.ts";
 
 const COOKIE_NAME = "ghspace_session";
+
 const MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
 
 /**
@@ -18,6 +19,7 @@ function sign(value: string): string {
 function verify(value: string, signature: string): boolean {
   const expected = Buffer.from(sign(value));
   const actual = Buffer.from(signature);
+
   // Length check first: timingSafeEqual throws on a length mismatch.
   return expected.length === actual.length && timingSafeEqual(expected, actual);
 }
@@ -40,12 +42,15 @@ export async function destroySession(): Promise<void> {
 /** Returns the signed-in user's id, or null. Never throws on a bad cookie. */
 export async function getSessionUserId(): Promise<string | null> {
   const raw = (await cookies()).get(COOKIE_NAME)?.value;
+
   if (!raw) return null;
 
   const separator = raw.lastIndexOf(".");
+
   if (separator <= 0) return null;
 
   const userId = raw.slice(0, separator);
   const signature = raw.slice(separator + 1);
+
   return verify(userId, signature) ? userId : null;
 }

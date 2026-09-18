@@ -195,8 +195,11 @@ export const userRepositoryAccess = pgTable(
 );
 
 export type PullRequestState = "OPEN" | "CLOSED" | "MERGED";
+
 export type ReviewDecision = "APPROVED" | "CHANGES_REQUESTED" | "REVIEW_REQUIRED";
+
 export type MergeableState = "MERGEABLE" | "CONFLICTING" | "UNKNOWN";
+
 export type ChecksState = "SUCCESS" | "FAILURE" | "PENDING" | "EXPECTED" | "ERROR";
 
 /**

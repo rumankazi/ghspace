@@ -40,6 +40,7 @@ describe("pull request parsing under partial GraphQL responses", () => {
   test("keeps the pull request when the head commit is forbidden", () => {
     const parsed = prNode.safeParse(pullRequest({ commits: { nodes: [null] } }));
     expect(parsed.success).toBe(true);
+
     if (parsed.success) {
       expect(parsed.data.number).toBe(23);
       expect(parsed.data.commits?.nodes[0]).toBeNull();
@@ -60,7 +61,9 @@ describe("pull request parsing under partial GraphQL responses", () => {
         commits: { nodes: [{ commit: { statusCheckRollup: { state: "FAILURE" } } }] },
       }),
     );
+
     expect(parsed.success).toBe(true);
+
     if (parsed.success) {
       expect(parsed.data.commits?.nodes[0]?.commit?.statusCheckRollup?.state).toBe("FAILURE");
     }
@@ -70,7 +73,9 @@ describe("pull request parsing under partial GraphQL responses", () => {
     const parsed = prNode.safeParse(
       pullRequest({ commits: { nodes: [{ commit: { statusCheckRollup: null } }] } }),
     );
+
     expect(parsed.success).toBe(true);
+
     if (parsed.success) {
       expect(parsed.data.commits?.nodes[0]?.commit?.statusCheckRollup ?? null).toBeNull();
     }

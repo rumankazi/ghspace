@@ -93,6 +93,7 @@ async function loadRelated(prIds: string[]) {
   if (prIds.length === 0) {
     return { reviews: [], requests: [], assignees: [] };
   }
+
   const [reviews, requests, assignees] = await Promise.all([
     db().select().from(pullRequestReviews).where(inArray(pullRequestReviews.pullRequestId, prIds)),
     db()
@@ -104,6 +105,7 @@ async function loadRelated(prIds: string[]) {
       .from(pullRequestAssignees)
       .where(inArray(pullRequestAssignees.pullRequestId, prIds)),
   ]);
+
   return { reviews, requests, assignees };
 }
 
@@ -114,11 +116,14 @@ function assemble(
 ): DashboardPullRequest[] {
   const group = <T>(items: T[], key: (item: T) => string) => {
     const map = new Map<string, T[]>();
+
     for (const item of items) {
       const existing = map.get(key(item));
+
       if (existing) existing.push(item);
       else map.set(key(item), [item]);
     }
+
     return map;
   };
 
@@ -217,6 +222,7 @@ export async function getDashboard(userId: string): Promise<Dashboard> {
   ]);
 
   const related = await loadRelated(rows.map((r) => r.pr.id));
+
   const reasons = new Map<string, DashboardPullRequest["reason"]>(
     rows.map((r) => [
       r.pr.id,
@@ -234,10 +240,13 @@ export async function getDashboard(userId: string): Promise<Dashboard> {
   const bucketByPr = new Map(rows.map((r) => [r.pr.id, r.involvement.bucket]));
 
   const byBucket = new Map<TriageBucket, DashboardPullRequest[]>();
+
   for (const pr of assembled) {
     const bucket = bucketByPr.get(pr.id);
+
     if (!bucket) continue;
     const list = byBucket.get(bucket);
+
     if (list) list.push(pr);
     else byBucket.set(bucket, [pr]);
   }
@@ -310,14 +319,19 @@ export async function getPullRequests(
   if (filters.repositoryIds && filters.repositoryIds.length > 0) {
     conditions.push(inArray(pullRequests.repositoryId, filters.repositoryIds));
   }
+
   if (filters.authors && filters.authors.length > 0) {
     conditions.push(inArray(pullRequests.authorLogin, filters.authors));
   }
+
   if (filters.query && filters.query.trim().length > 0) {
     conditions.push(ilike(pullRequests.title, `%${filters.query.trim()}%`));
   }
+
   if (filters.draft === "exclude") conditions.push(eq(pullRequests.isDraft, false));
+
   if (filters.draft === "only") conditions.push(eq(pullRequests.isDraft, true));
+
   if (filters.scope === "involved") {
     conditions.push(
       exists(
@@ -357,6 +371,7 @@ export async function getPullRequests(
   // can still show why a pull request concerns you without joining the whole
   // table.
   const reasons = new Map<string, DashboardPullRequest["reason"]>();
+
   if (rows.length > 0) {
     const involvement = await db()
       .select()
@@ -370,6 +385,7 @@ export async function getPullRequests(
           ),
         ),
       );
+
     for (const row of involvement) {
       reasons.set(row.pullRequestId, {
         isAuthor: row.isAuthor,
@@ -382,6 +398,7 @@ export async function getPullRequests(
   }
 
   const total = counted?.value ?? 0;
+
   return {
     pullRequests: assemble(rows, related, reasons),
     total,
@@ -466,11 +483,14 @@ export async function getSyncState(userId: string): Promise<SyncState> {
   // The oldest of the most recent successes per installation is the honest
   // "synced N ago": one stale installation makes the whole page stale.
   const latestPerInstallation = new Map<string, Date>();
+
   for (const run of succeeded) {
     if (!run.installationId || !run.finishedAt) continue;
     const seen = latestPerInstallation.get(run.installationId);
+
     if (!seen || seen < run.finishedAt) latestPerInstallation.set(run.installationId, run.finishedAt);
   }
+
   const oldestSuccess = [...latestPerInstallation.values()].sort(
     (a, b) => a.getTime() - b.getTime(),
   )[0];

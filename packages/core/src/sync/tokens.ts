@@ -24,6 +24,7 @@ export async function persistTokens(userId: string, tokens: UserTokens): Promise
     scopes: tokens.scopes,
     updatedAt: new Date(),
   };
+
   await db()
     .insert(githubCredentials)
     .values({ userId, ...row })
@@ -59,6 +60,7 @@ export async function getValidAccessToken(userId: string): Promise<string> {
       `Access token for user ${userId} expired and no refresh token is stored`,
     );
   }
+
   if (record.refreshTokenExpiresAt && record.refreshTokenExpiresAt.getTime() < Date.now()) {
     throw new CredentialsUnusableError(
       `Refresh token for user ${userId} expired; the user must re-authorise`,
@@ -68,11 +70,14 @@ export async function getValidAccessToken(userId: string): Promise<string> {
   log.info("refreshing github user token", { userId });
   const refreshed = await refreshUserTokens(decrypt(record.refreshToken));
   await persistTokens(userId, refreshed);
+
   return refreshed.accessToken;
 }
 
 export async function getUserWithApiBase(userId: string) {
   const [user] = await db().select().from(users).where(eq(users.id, userId)).limit(1);
+
   if (!user) throw new CredentialsUnusableError(`No user ${userId}`);
+
   return user;
 }

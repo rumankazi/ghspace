@@ -1,4 +1,5 @@
 const LEVELS = { debug: 10, info: 20, warn: 30, error: 40 } as const;
+
 export type Level = keyof typeof LEVELS;
 
 /**
@@ -17,6 +18,7 @@ export type Level = keyof typeof LEVELS;
  */
 function threshold(): number {
   const configured = process.env.LOG_LEVEL as Level | undefined;
+
   return configured && configured in LEVELS ? LEVELS[configured] : LEVELS.info;
 }
 
@@ -34,21 +36,28 @@ const COLOUR: Record<Level, string> = {
   warn: "\x1b[33m",
   error: "\x1b[31m",
 };
+
 const DIM = "\x1b[2m";
+
 const RESET = "\x1b[0m";
 
 function useHumanFormat(): boolean {
   // NO_COLOR is honoured by convention; an explicit LOG_FORMAT wins over both.
   const configured = process.env.LOG_FORMAT;
+
   if (configured === "json") return false;
+
   if (configured === "pretty") return true;
+
   return Boolean(process.stdout.isTTY) && !process.env.NO_COLOR;
 }
 
 function formatValue(value: unknown): string {
   if (value === null || value === undefined) return "-";
+
   if (typeof value === "number") return Number.isInteger(value) ? String(value) : value.toFixed(1);
   const text = String(value);
+
   return text.includes(" ") ? `"${text}"` : text;
 }
 
@@ -64,12 +73,15 @@ function emit(level: Level, message: string, fields?: Record<string, unknown>) {
       message,
       ...fields,
     });
+
     if (toStderr) console.error(line);
     else console.log(line);
+
     return;
   }
 
   const time = new Date().toTimeString().slice(0, 8);
+
   const pairs = Object.entries(fields ?? {})
     .filter(([, value]) => value !== undefined)
     .map(([key, value]) => `${key}=${formatValue(value)}`)
@@ -104,9 +116,11 @@ export async function timed<T>(
 ): Promise<T> {
   const startedAt = Date.now();
   log.info(`${message}…`, fields);
+
   try {
     const result = await work();
     log.info(`${message} done`, { ...fields, ms: Date.now() - startedAt });
+
     return result;
   } catch (error) {
     log.error(`${message} failed`, {

@@ -7,7 +7,9 @@ import "server-only";
  */
 function required(name: string): string {
   const value = process.env[name];
+
   if (!value) throw new Error(`Missing required environment variable ${name}`);
+
   return value;
 }
 
@@ -59,9 +61,12 @@ export function installConfigured(): boolean {
  */
 export function installUrl(state?: string): string | null {
   const slug = process.env.GH_APP_SLUG ?? process.env.GITHUB_APP_SLUG;
+
   if (!slug || slug === "placeholder") return null;
 
   const url = new URL(`${githubWebBaseUrl()}/apps/${slug}/installations/new`);
+
   if (state) url.searchParams.set("state", state);
+
   return url.toString();
 }

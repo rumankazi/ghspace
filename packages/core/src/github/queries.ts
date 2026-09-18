@@ -80,18 +80,21 @@ export async function searchPullRequests(
       { q: query, first: pageSize, after },
       { search: query },
     );
+
     const parsed = searchResponse.parse(raw);
 
     rateLimit = toRateLimitSnapshot(parsed.rateLimit) ?? rateLimit;
 
     for (const node of parsed.search.nodes) {
       const pr = prNode.safeParse(node);
+
       if (pr.success) pullRequests.push(pr.data);
     }
 
     if (!parsed.search.pageInfo.hasNextPage || !parsed.search.pageInfo.endCursor) {
       return { pullRequests, rateLimit };
     }
+
     after = parsed.search.pageInfo.endCursor;
 
     if (page === maxPages - 1) {

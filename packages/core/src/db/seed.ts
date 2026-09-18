@@ -36,11 +36,14 @@ const LOGIN = process.argv[2] ?? "demo-user";
 /** Deterministic pseudo-random, so repeated runs produce identical data. */
 function makeRandom(seed: number) {
   let state = seed;
+
   return () => {
     state = (state * 1664525 + 1013904223) % 2 ** 32;
+
     return state / 2 ** 32;
   };
 }
+
 const random = makeRandom(20260918);
 
 /**
@@ -49,6 +52,7 @@ const random = makeRandom(20260918);
  * "in 3 hours" the moment it fell behind. Everything else stays deterministic.
  */
 const NOW = Date.now();
+
 const hoursAgo = (h: number) => new Date(NOW - h * 3_600_000);
 
 const PEOPLE = [
@@ -349,11 +353,13 @@ async function seed(): Promise<void> {
     avatarUrl: avatar(LOGIN),
     updatedAt: seededAt,
   };
+
   const [user] = await db()
     .insert(users)
     .values({ githubUserId: 900_001, ...profile })
     .onConflictDoUpdate({ target: users.githubUserId, set: profile })
     .returning({ id: users.id });
+
   const userId = user!.id;
 
   // --- installation -----------------------------------------------------
@@ -366,6 +372,7 @@ async function seed(): Promise<void> {
     suspendedAt: null,
     syncedAt: seededAt,
   };
+
   const [installation] = await db()
     .insert(installations)
     .values({ githubInstallationId: 900_002, ...installationValues })
@@ -374,6 +381,7 @@ async function seed(): Promise<void> {
       set: installationValues,
     })
     .returning({ id: installations.id });
+
   const installationId = installation!.id;
 
   await db()
@@ -391,6 +399,7 @@ async function seed(): Promise<void> {
 
   // --- repositories, and this user's access to them ---------------------
   const repoIdByName = new Map<string, string>();
+
   for (const repo of REPOS) {
     const values = {
       owner: "acme-industries",
@@ -402,11 +411,13 @@ async function seed(): Promise<void> {
       installationId,
       syncedAt: seededAt,
     };
+
     const [row] = await db()
       .insert(repositories)
       .values({ nodeId: `seed-repo-${repo.name}`, ...values })
       .onConflictDoUpdate({ target: repositories.nodeId, set: values })
       .returning({ id: repositories.id });
+
     repoIdByName.set(repo.name, row!.id);
 
     await db()
@@ -420,6 +431,7 @@ async function seed(): Promise<void> {
 
   // --- pull requests ----------------------------------------------------
   let number = 100;
+
   for (const spec of SEED_PRS) {
     number += Math.floor(random() * 7) + 1;
     const author = spec.author ?? PEOPLE[number % PEOPLE.length]!;
@@ -455,6 +467,7 @@ async function seed(): Promise<void> {
       .values({ nodeId, ...values })
       .onConflictDoUpdate({ target: pullRequests.nodeId, set: values })
       .returning({ id: pullRequests.id });
+
     const prId = pr!.id;
 
     // Replaced wholesale, exactly as the real sync does.
@@ -520,6 +533,7 @@ async function seed(): Promise<void> {
         }),
         lastSeenAt: seededAt,
       };
+
       await db()
         .insert(pullRequestInvolvement)
         .values({ userId, pullRequestId: prId, ...row })
@@ -554,4 +568,5 @@ async function seed(): Promise<void> {
 }
 
 await seed();
+
 await closeDb();

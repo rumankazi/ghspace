@@ -25,6 +25,7 @@ export interface UserTokens {
 
 function parse(body: unknown): UserTokens {
   const failure = errorResponse.safeParse(body);
+
   if (failure.success) {
     throw new Error(
       `GitHub OAuth error: ${failure.data.error}${
@@ -32,8 +33,10 @@ function parse(body: unknown): UserTokens {
       }`,
     );
   }
+
   const data = tokenResponse.parse(body);
   const now = Date.now();
+
   return {
     accessToken: data.access_token,
     accessTokenExpiresAt: data.expires_in ? new Date(now + data.expires_in * 1000) : null,
@@ -55,9 +58,11 @@ async function postToken(params: Record<string, string>): Promise<UserTokens> {
       ...params,
     }),
   });
+
   if (!response.ok) {
     throw new Error(`GitHub OAuth request failed: ${response.status} ${response.statusText}`);
   }
+
   return parse(await response.json());
 }
 
@@ -80,5 +85,6 @@ export function authorizeUrl(state: string, redirectUri: string): string {
   url.searchParams.set("client_id", env().GH_APP_CLIENT_ID);
   url.searchParams.set("redirect_uri", redirectUri);
   url.searchParams.set("state", state);
+
   return url.toString();
 }

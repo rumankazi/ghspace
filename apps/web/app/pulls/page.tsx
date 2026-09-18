@@ -29,6 +29,7 @@ export default async function PullsPage({
 
   const single = (key: string) => {
     const value = params[key];
+
     return Array.isArray(value) ? value[0] : value;
   };
 
@@ -53,9 +54,11 @@ export default async function PullsPage({
 
   const shown = offset + page.pullRequests.length;
   const nextParams = new URLSearchParams();
+
   for (const [key, value] of Object.entries(params)) {
     if (typeof value === "string" && key !== "offset") nextParams.set(key, value);
   }
+
   nextParams.set("offset", String(offset + PAGE_SIZE));
 
   return (

@@ -6,6 +6,7 @@ let pool: Pool | undefined;
 
 function poolMax(): number {
   const configured = Number.parseInt(process.env.DATABASE_POOL_MAX ?? "", 10);
+
   return Number.isFinite(configured) && configured > 0 ? configured : 10;
 }
 
@@ -22,6 +23,7 @@ function getPool(): Pool {
   if (pool) return pool;
 
   const connectionString = process.env.DATABASE_URL;
+
   if (!connectionString) {
     throw new Error("DATABASE_URL is not set.");
   }
@@ -45,6 +47,7 @@ function getPool(): Pool {
   pool.on("error", (err) => {
     console.error(JSON.stringify({ level: "error", message: "pg pool error", err: err.message }));
   });
+
   return pool;
 }
 
@@ -65,6 +68,7 @@ let cached: Database | undefined;
 
 export function db(): Database {
   cached ??= createDb();
+
   return cached;
 }
 

@@ -12,12 +12,14 @@ import { getSessionUserId } from "@/lib/session";
  */
 export async function refreshNow(): Promise<void> {
   const userId = await getSessionUserId();
+
   if (!userId) return;
 
   try {
     // Access first: involvement can only be derived for a user whose repository
     // access is already known.
     await syncUserAccess(userId);
+
     for (const installation of await listInstallationsForSync()) {
       await syncInstallation(installation.id);
     }

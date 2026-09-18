@@ -18,6 +18,7 @@ export async function GET(request: NextRequest) {
 
   // GitHub reports a denied authorisation here rather than by omitting `code`.
   const oauthError = params.get("error");
+
   if (oauthError) return failed(params.get("error_description") ?? oauthError);
 
   // Present only when the user arrived by way of an installation: "install",
@@ -85,6 +86,7 @@ export async function GET(request: NextRequest) {
     // Skipped for a returning user who already has coverage — re-listing it on
     // every sign-in would spend their personal rate limit to learn nothing.
     let coverage = await getInstallationCoverage(user!.id);
+
     if (setupAction || coverage.length === 0) {
       try {
         await syncUserAccess(user!.id);
@@ -102,10 +104,12 @@ export async function GET(request: NextRequest) {
     // Nothing to triage until the app is installed somewhere, so send those
     // users to the step that fixes it rather than to an empty dashboard.
     const destination = coverage.length > 0 ? "/dashboard" : "/setup";
+
     return NextResponse.redirect(`${appBaseUrl()}${destination}`);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     log.error("sign-in failed", { error: message });
+
     return failed("Could not complete sign-in with GitHub.");
   }
 }

@@ -45,10 +45,12 @@ export async function syncUserAccess(userId: string): Promise<AccessSyncOutcome>
     .insert(syncRuns)
     .values({ userId, kind: ACCESS_SYNC_KIND, status: "running", startedAt: seenAt })
     .returning({ id: syncRuns.id });
+
   const syncRunId = run!.id;
 
   try {
     const token = await getValidAccessToken(userId);
+
     const client = createGitHubClient({
       token,
       apiBaseUrl: user.apiBaseUrl,
@@ -58,6 +60,7 @@ export async function syncUserAccess(userId: string): Promise<AccessSyncOutcome>
     const found = await timed("listing installations", { login: user.githubLogin }, () =>
       fetchUserInstallations(client),
     );
+
     let repositoryCount = 0;
 
     for (const [index, entry] of found.entries()) {
@@ -66,6 +69,7 @@ export async function syncUserAccess(userId: string): Promise<AccessSyncOutcome>
         { account: entry.accountLogin, installation: `${index + 1}/${found.length}` },
         () => listAccessibleRepositories(client, entry.githubInstallationId),
       );
+
       repositoryCount += accessible.length;
 
       await db().transaction(async (tx) => {

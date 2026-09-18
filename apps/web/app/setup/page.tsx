@@ -24,6 +24,7 @@ export default async function SetupPage({
   searchParams: Promise<{ pending?: string; error?: string }>;
 }) {
   const user = await requireUser();
+
   const [coverage, { pending, error }] = await Promise.all([
     getInstallationCoverage(user.id),
     searchParams,

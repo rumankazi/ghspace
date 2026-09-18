@@ -19,16 +19,23 @@ import { cn } from "@/lib/utils";
  */
 function reasonLabel(reason: DashboardPullRequest["reason"]): string | null {
   if (!reason) return null;
+
   if (reason.isReviewRequested) return "Review requested";
+
   if (reason.isAuthor) return "You opened this";
+
   if (reason.isAssigned) return "Assigned to you";
+
   if (reason.hasReviewed) return "You reviewed";
+
   if (reason.isMentioned) return "You were mentioned";
+
   return null;
 }
 
 function ChecksIndicator({ state }: { state: string | null }) {
   if (state === null) return null;
+
   if (state === "SUCCESS") {
     return (
       <span className="text-success inline-flex items-center gap-1" title="All checks passed">
@@ -37,6 +44,7 @@ function ChecksIndicator({ state }: { state: string | null }) {
       </span>
     );
   }
+
   if (state === "FAILURE" || state === "ERROR") {
     return (
       <span className="text-destructive inline-flex items-center gap-1" title="Checks failing">
@@ -45,6 +53,7 @@ function ChecksIndicator({ state }: { state: string | null }) {
       </span>
     );
   }
+
   return (
     <span className="text-warning inline-flex items-center gap-1" title="Checks running">
       <CircleDot className="size-3.5" aria-hidden />
@@ -61,10 +70,12 @@ const REVIEW_LABELS: Record<string, { label: string; className: string }> = {
 
 export function PullRequestCard({ pr }: { pr: DashboardPullRequest }) {
   const review = pr.reviewDecision ? REVIEW_LABELS[pr.reviewDecision] : undefined;
+
   const reviewers = [
     ...pr.pendingReviewers.map((r) => ({ ...r, pending: true })),
     ...pr.reviewers.map((r) => ({ ...r, isTeam: false, pending: false })),
   ].slice(0, 5);
+
   const reason = reasonLabel(pr.reason);
 
   return (

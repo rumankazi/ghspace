@@ -46,6 +46,7 @@ export async function listAccessibleRepositories(
       "GET /user/installations/{installation_id}/repositories",
       { installation_id: installationId, per_page: 100, page },
     );
+
     const parsed = response.parse(raw.data);
 
     for (const entry of parsed.repositories) {

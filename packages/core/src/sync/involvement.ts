@@ -55,6 +55,7 @@ export async function recomputeInvolvement(
     .select()
     .from(pullRequests)
     .where(inArray(pullRequests.repositoryId, repositoryIds));
+
   if (prs.length === 0) return 0;
 
   // Owning the repository is itself an involvement signal — see the bot case
@@ -63,6 +64,7 @@ export async function recomputeInvolvement(
     .select({ id: repositories.id, owner: repositories.owner })
     .from(repositories)
     .where(inArray(repositories.id, repositoryIds));
+
   const ownerByRepo = new Map(repoRows.map((r) => [r.id, r.owner]));
 
   const prIds = prs.map((pr) => pr.id);
@@ -76,10 +78,12 @@ export async function recomputeInvolvement(
     .select()
     .from(pullRequestReviews)
     .where(inArray(pullRequestReviews.pullRequestId, prIds));
+
   const requests = await tx
     .select()
     .from(pullRequestReviewRequests)
     .where(inArray(pullRequestReviewRequests.pullRequestId, prIds));
+
   const assignees = await tx
     .select()
     .from(pullRequestAssignees)
@@ -87,6 +91,7 @@ export async function recomputeInvolvement(
 
   const reviewersByPr = groupLogins(reviews, (r) => r.pullRequestId, (r) => r.reviewerLogin);
   const assigneesByPr = groupLogins(assignees, (a) => a.pullRequestId, (a) => a.login);
+
   // Team requests are excluded: matching them needs the user's team
   // memberships, which this path does not fetch.
   const requestedByPr = groupLogins(
@@ -150,6 +155,7 @@ export async function recomputeInvolvement(
   // Chunked because a large organisation can produce tens of thousands of rows,
   // and Postgres caps a statement at 65535 bind parameters.
   const CHUNK = 500;
+
   for (let i = 0; i < rows.length; i += CHUNK) {
     await tx
       .insert(pullRequestInvolvement)
@@ -178,14 +184,18 @@ function groupLogins<T>(
   loginOf: (item: T) => string | null,
 ): Map<string, Set<string>> {
   const map = new Map<string, Set<string>>();
+
   for (const item of items) {
     const login = loginOf(item);
+
     if (!login) continue;
     const key = keyOf(item);
     const existing = map.get(key);
+
     if (existing) existing.add(login);
     else map.set(key, new Set([login]));
   }
+
   return map;
 }
 

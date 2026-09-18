@@ -1,6 +1,9 @@
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
+
 const ALGORITHM = "aes-256-gcm";
+
 const IV_BYTES = 12;
+
 const TAG_BYTES = 16;
 
 let cachedKey: Buffer | undefined;
@@ -18,6 +21,7 @@ function key(): Buffer {
   if (cachedKey) return cachedKey;
 
   const configured = process.env.ENCRYPTION_KEY;
+
   if (!configured) {
     throw new Error(
       "ENCRYPTION_KEY is not set. Generate one with: openssl rand -base64 32",
@@ -25,12 +29,15 @@ function key(): Buffer {
   }
 
   const raw = Buffer.from(configured, "base64");
+
   if (raw.length !== 32) {
     throw new Error(
       `ENCRYPTION_KEY must decode to 32 bytes, got ${raw.length}. Generate one with: openssl rand -base64 32`,
     );
   }
+
   cachedKey = raw;
+
   return cachedKey;
 }
 
@@ -42,10 +49,12 @@ function key(): Buffer {
 export function encrypt(plaintext: string): Buffer {
   const iv = randomBytes(IV_BYTES);
   const cipher = createCipheriv(ALGORITHM, key(), iv);
+
   const ciphertext = Buffer.concat([
     cipher.update(plaintext, "utf8"),
     cipher.final(),
   ]);
+
   return Buffer.concat([iv, cipher.getAuthTag(), ciphertext]);
 }
 
@@ -58,11 +67,13 @@ export function decrypt(payload: Buffer): string {
   if (payload.length <= IV_BYTES + TAG_BYTES) {
     throw new Error("Encrypted payload is too short to be valid");
   }
+
   const iv = payload.subarray(0, IV_BYTES);
   const tag = payload.subarray(IV_BYTES, IV_BYTES + TAG_BYTES);
   const ciphertext = payload.subarray(IV_BYTES + TAG_BYTES);
 
   const decipher = createDecipheriv(ALGORITHM, key(), iv);
   decipher.setAuthTag(tag);
+
   return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString("utf8");
 }

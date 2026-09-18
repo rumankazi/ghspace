@@ -12,9 +12,11 @@ import { getSessionUserId } from "./session.ts";
  */
 export async function requireUser() {
   const userId = await getSessionUserId();
+
   if (!userId) redirect("/");
 
   const [user] = await db().select().from(users).where(eq(users.id, userId)).limit(1);
+
   // A correctly signed cookie for a user that no longer exists — most often
   // after a database reset. The cookie has to be cleared by a route handler,
   // since a Server Component cannot write one, and the reason is carried
