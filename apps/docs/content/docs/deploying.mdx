@@ -14,25 +14,51 @@ Three moving parts, three homes. This page covers the zero-cost combination;
 
 ## 1. Database
 
-Create a Supabase project and take the **connection string**, nothing else —
-see [Portability](/docs/portability) for why that restraint matters.
+Create a Supabase project, then open **Connect** at the top of the dashboard.
+Take the **connection string** and nothing else — see
+[Portability](/docs/portability) for why that restraint matters.
 
-You need both forms:
+Supabase offers three, and the difference is not cosmetic:
 
-| Use | Form | Port |
+| Connection | Port | Username | Reachable over |
+| --- | --- | --- | --- |
+| Direct | 5432 | `postgres` | **IPv6 only** on the free plan |
+| Session pooler | 5432 | `postgres.PROJECT_REF` | IPv4 and IPv6 |
+| Transaction pooler | 6543 | `postgres.PROJECT_REF` | IPv4 and IPv6 |
+
+<Callout type="error">
+The direct connection has no IPv4 address on the free plan, and **GitHub Actions
+runners are IPv4-only**. Using it for the scheduled worker fails with a
+connection error that looks like the database is down.
+
+Note also that the pooler username is `postgres.PROJECT_REF`, not `postgres` —
+copying the direct string and changing only the host produces an
+authentication failure.
+</Callout>
+
+Which to use where:
+
+| Use | Connection | Also set |
 | --- | --- | --- |
-| Vercel (serverless) | transaction-mode pooler | 6543 |
-| GitHub Actions, migrations | direct | 5432 |
+| Vercel | transaction pooler, 6543 | `DATABASE_POOL_MAX=1` |
+| GitHub Actions | session pooler, 5432 | — |
+| Migrations from your machine | either, if your network has IPv6 | — |
 
-Serverless holds one pool per function instance, so the pooler is not optional
-there. Set `DATABASE_POOL_MAX=1` alongside it.
+Serverless holds one pool per function instance, so on Vercel the transaction
+pooler and a pool size of 1 are both required. Transaction mode does not support
+prepared statements; ghspace never calls Drizzle's `.prepare()`, so this costs
+nothing today, but it is a reason not to start.
 
-Apply the schema from your machine, pointing at the direct connection:
+Apply the schema from your machine:
 
 ```bash
-DATABASE_URL="postgres://postgres:PASS@db.PROJECT.supabase.co:5432/postgres" \
+DATABASE_URL="postgresql://postgres.PROJECT_REF:PASS@POOLER_HOST:5432/postgres" \
   bun run --filter @ghspace/core db:migrate
 ```
+
+If your network has no IPv6, the session pooler is the only option that will
+connect at all — test with `dig AAAA` and `dig A` against the direct host if you
+are unsure.
 
 ## 2. Web app
 
@@ -76,7 +102,8 @@ callback is built from it.
 a five-minute schedule.
 
 Add these repository secrets (**Settings → Secrets and variables → Actions**):
-`DATABASE_URL` (direct, port 5432), `ENCRYPTION_KEY`, `GITHUB_APP_ID`,
+`DATABASE_URL` (**session pooler**, port 5432 — not the direct connection, which
+Actions cannot reach), `ENCRYPTION_KEY`, `GITHUB_APP_ID`,
 `GITHUB_APP_SLUG`, `GITHUB_APP_CLIENT_ID`, `GITHUB_APP_CLIENT_SECRET`,
 `GITHUB_APP_PRIVATE_KEY`.
 
@@ -102,7 +129,7 @@ keeps working.
 ## 5. Check it
 
 ```bash
-DATABASE_URL="<direct connection>" bun run doctor
+DATABASE_URL="<session pooler>" bun run doctor
 ```
 
 The doctor validates credentials against the live API, lists installations, and
