@@ -24,7 +24,7 @@ import {
   type InstallationRepository,
 } from "../github/repo-queries.ts";
 import type { PullRequestNode } from "../github/pull-request-fields.ts";
-import { log } from "../lib/logger.ts";
+import { log, timed } from "../lib/logger.ts";
 import { recomputeInvolvement } from "./involvement.ts";
 
 export const INSTALLATION_SYNC_KIND = "installation_pull_requests";
@@ -95,20 +95,34 @@ export async function syncInstallation(
     }
 
     const client = createInstallationClient(installation.githubInstallationId);
+    const account = installation.accountLogin;
 
-    const repos = await listInstallationRepositories(client);
+    const repos = await timed("listing repositories", { account }, () =>
+      listInstallationRepositories(client),
+    );
     const active = repos.filter((repo) => !repo.isArchived);
+    log.info("repositories to scan", {
+      account,
+      total: repos.length,
+      active: active.length,
+      archived: repos.length - active.length,
+    });
 
     const { pullRequests: nodes, rateLimit } = await fetchOpenPullRequests(
       client,
       active.map((r) => ({ owner: r.owner, name: r.name })),
+      (done, total, found) =>
+        log.info("scanning repositories", {
+          account,
+          progress: `${done}/${total}`,
+          pullRequests: found,
+        }),
     );
 
-    const involvementCount = await writeSnapshot(
-      installation.id,
-      repos,
-      nodes,
-      startedAt,
+    const involvementCount = await timed(
+      "writing snapshot",
+      { account, pullRequests: nodes.length },
+      () => writeSnapshot(installation.id, repos, nodes, startedAt),
     );
 
     await db()
@@ -124,11 +138,12 @@ export async function syncInstallation(
       .where(eq(syncRuns.id, syncRunId));
 
     log.info("installation sync succeeded", {
-      installation: installation.accountLogin,
+      account,
       repositories: active.length,
       pullRequests: nodes.length,
       involvementRows: involvementCount,
       rateLimitRemaining: rateLimit?.remaining,
+      ms: Date.now() - startedAt.getTime(),
     });
 
     return {

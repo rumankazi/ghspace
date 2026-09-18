@@ -159,6 +159,8 @@ export interface RepositoryPullRequests {
 export async function fetchOpenPullRequests(
   client: GitHubClient,
   repos: RepoRef[],
+  /** Called after each batch, so a long fetch can report progress. */
+  onProgress?: (done: number, total: number, found: number) => void,
 ): Promise<RepositoryPullRequests> {
   const pullRequests: PullRequestNode[] = [];
   let rateLimit: RateLimitSnapshot | undefined;
@@ -214,6 +216,8 @@ export async function fetchOpenPullRequests(
         pullRequests.push(...extra);
       }
     }
+
+    onProgress?.(Math.min(offset + batch.length, repos.length), repos.length, pullRequests.length);
   }
 
   return { pullRequests, rateLimit };

@@ -10,7 +10,7 @@ import {
 import { createGitHubClient } from "../github/client.ts";
 import { fetchUserInstallations } from "../github/installations.ts";
 import { listAccessibleRepositories } from "../github/user-repos.ts";
-import { log } from "../lib/logger.ts";
+import { log, timed } from "../lib/logger.ts";
 import { getUserWithApiBase, getValidAccessToken } from "./tokens.ts";
 
 export const ACCESS_SYNC_KIND = "user_access";
@@ -55,13 +55,16 @@ export async function syncUserAccess(userId: string): Promise<AccessSyncOutcome>
       userLogin: user.githubLogin,
     });
 
-    const found = await fetchUserInstallations(client);
+    const found = await timed("listing installations", { login: user.githubLogin }, () =>
+      fetchUserInstallations(client),
+    );
     let repositoryCount = 0;
 
-    for (const entry of found) {
-      const accessible = await listAccessibleRepositories(
-        client,
-        entry.githubInstallationId,
+    for (const [index, entry] of found.entries()) {
+      const accessible = await timed(
+        "listing accessible repositories",
+        { account: entry.accountLogin, installation: `${index + 1}/${found.length}` },
+        () => listAccessibleRepositories(client, entry.githubInstallationId),
       );
       repositoryCount += accessible.length;
 

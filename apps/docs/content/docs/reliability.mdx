@@ -60,6 +60,38 @@ A cycle that outruns its interval is skipped rather than queued, guarded by an
 in-flight flag. Each wait adds up to 10% jitter so that several self-hosted
 instances, or a restart loop, do not hit GitHub in lockstep.
 
+## Interrupting a sync
+
+Stopping a sync part-way — Ctrl+C, a container stop, a crash — is safe, by
+construction rather than by luck:
+
+- Each snapshot is written in **one transaction**, so Postgres rolls back
+  anything half-written. There is no state in which some repositories are
+  refreshed and others are not.
+- Upserts are idempotent and the sweeps that retire stale rows are
+  timestamp-based, so re-running simply re-stamps everything.
+
+The one loose end is the `sync_runs` row of the interrupted run, which never
+gets to record its outcome and would otherwise sit at `"running"` forever. That
+matters because the dashboard reports the most recent run's status, so a single
+abandoned row would leave the interface claiming a sync is in progress
+indefinitely.
+
+`reapInterruptedRuns()` closes those out, and runs on startup in both the worker
+and the CLI. It is a sweep with a generous staleness threshold rather than a
+signal handler, because `SIGKILL` and power loss cannot be caught — the CLI's
+handler is a courtesy that avoids waiting out the threshold, not the mechanism.
+
+## Progress and log format
+
+Sync is a long-running foreground command, so it narrates itself: repository
+counts, per-batch progress, and a timing for each phase. Silence between
+milestones reads as a hang.
+
+Output adapts to its reader. Attached to a terminal it is a compact human line;
+piped or redirected it is single-line JSON, so container logs stay greppable.
+`LOG_FORMAT=pretty|json` forces either.
+
 ## Bounded work
 
 Every unbounded loop has a ceiling, and every ceiling logs when it is hit:

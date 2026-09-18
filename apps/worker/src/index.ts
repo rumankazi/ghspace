@@ -3,6 +3,7 @@ import { env, log } from "@ghspace/core";
 import {
   CredentialsUnusableError,
   listInstallationsForSync,
+  reapInterruptedRuns,
   syncInstallation,
   syncUserAccess,
 } from "@ghspace/core/sync";
@@ -124,6 +125,10 @@ async function syncAllUserAccess(): Promise<void> {
 async function main(): Promise<void> {
   const intervalMs = env().SYNC_INTERVAL_SECONDS * 1000;
   log.info("worker started", { intervalSeconds: env().SYNC_INTERVAL_SECONDS });
+
+  // A previous process may have been killed mid-run. Its row would otherwise
+  // sit at "running" forever, and the dashboard reports the latest run's state.
+  await reapInterruptedRuns();
 
   // Access first: an installation sync can only build involvement for users
   // whose repository access is already known.
