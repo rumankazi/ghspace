@@ -10,7 +10,12 @@
 		".claude/**",
 		"**/.source/**",
 		"**/.next/**",
-		"**/drizzle/**"
+		"**/drizzle/**",
+
+		// Written by Next.js, and its references to .next/types/* exist only
+		// after a build. Analysing it makes a clean checkout report unresolved
+		// imports that are nothing of the sort.
+		"**/next-env.d.ts"
 	],
 
 	// Consequence of the ignore above, not genuinely unused: the only importer of

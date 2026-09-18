@@ -67,6 +67,15 @@ jobs:
       - name: Test lint rules
         run: bun test tools/oxlint
 
+      # apps/docs/lib/source.ts imports @/.source/server, which fumadocs-mdx
+      # generates. Without this, fallow reports it as an unresolved import on a
+      # clean checkout — and a local run will not reproduce that, because a warm
+      # .fallow cache still holds the old resolution. Clear .fallow when
+      # reproducing a CI-only fallow failure.
+      - name: Generate docs sources
+        working-directory: apps/docs
+        run: bunx fumadocs-mdx
+
       # Dead code, unused dependencies and circular imports. Scoped by
       # .fallowrc.json to code we own — the vendored Oxlint plugin would
       # otherwise dominate every report.
