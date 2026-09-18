@@ -15,8 +15,11 @@ export async function requireUser() {
   if (!userId) redirect("/");
 
   const [user] = await db().select().from(users).where(eq(users.id, userId)).limit(1);
-  // A valid cookie for a deleted user: clear the session rather than loop.
-  if (!user) redirect("/api/auth/logout");
+  // A correctly signed cookie for a user that no longer exists — most often
+  // after a database reset. The cookie has to be cleared by a route handler,
+  // since a Server Component cannot write one, and the reason is carried
+  // through so the sign-in page can explain what happened.
+  if (!user) redirect("/api/auth/logout?reason=stale");
 
   return user;
 }
