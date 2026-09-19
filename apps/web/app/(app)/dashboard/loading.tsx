@@ -1,20 +1,18 @@
-import {
-  AppNavSkeleton,
-  BucketSectionSkeleton,
-  CoveragePanelSkeleton,
-  LoadingLabel,
-} from "@/components/skeletons";
+import { BucketSectionSkeleton, CoveragePanelSkeleton, LoadingLabel } from "@/components/skeletons";
 
 /**
  * Two buckets rather than the four the dashboard can show. Guessing high means
  * the page shortens as it loads, which looks like something failed; guessing
  * low only ever grows, which reads as more arriving.
+ *
+ * No nav placeholder: the nav belongs to the layout now, so on every
+ * navigation after the first it is already on screen and holding still. Its
+ * one placeholder lives with it, in `(app)/layout.tsx`.
  */
 export default function DashboardLoading() {
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+    <div>
       <LoadingLabel>Loading your pull requests</LoadingLabel>
-      <AppNavSkeleton />
 
       <div className="space-y-4">
         <BucketSectionSkeleton rows={3} />

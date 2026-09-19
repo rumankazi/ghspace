@@ -1,12 +1,9 @@
 import Link from "next/link";
-import { getFilterOptions, getPullRequests, getSyncState } from "@ghspace/core";
-import { AppNav } from "@/components/app-nav";
-import { AutoRefresh } from "@/components/auto-refresh";
+import { getFilterOptions, getPullRequests } from "@ghspace/core";
 import { PullRequestFilters } from "@/components/pull-request-filters";
 import { RepositorySection } from "@/components/repository-section";
 import { Button } from "@/components/ui/button";
 import { requireUser } from "@/lib/current-user";
-import { refreshNow } from "@/app/dashboard/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -43,7 +40,7 @@ export default async function PullsPage({
   const author = single("author");
   const draft = single("draft");
 
-  const [page, options, sync] = await Promise.all([
+  const [page, options] = await Promise.all([
     getPullRequests(user.id, {
       repositoryIds: repo ? [repo] : undefined,
       authors: author ? [author] : undefined,
@@ -54,7 +51,6 @@ export default async function PullsPage({
       offset,
     }),
     getFilterOptions(user.id),
-    getSyncState(user.id),
   ]);
 
   const shown = offset + page.count;
@@ -67,10 +63,7 @@ export default async function PullsPage({
   nextParams.set("offset", String(offset + PAGE_SIZE));
 
   return (
-    <div className="animate-content-in mx-auto max-w-5xl px-4 py-8 sm:px-6">
-      <AutoRefresh />
-      <AppNav current="/pulls" user={user} sync={sync} refreshAction={refreshNow} />
-
+    <div className="animate-content-in">
       <div className="mb-4">
         <PullRequestFilters options={options} />
       </div>

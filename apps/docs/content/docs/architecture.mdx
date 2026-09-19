@@ -48,9 +48,35 @@ Browser → Next.js server component → Postgres → HTML
 The only GitHub calls from `apps/web` are the OAuth exchange at sign-in and the
 manual **Refresh** button, which runs the same sync functions the worker does.
 
+## The signed-in shell
+
+`/dashboard` and `/pulls` live in the `(app)` route group, and its layout owns
+the header. A layout is preserved across navigations between the routes it
+wraps, so the nav is built once and holds still while the content below it
+swaps — which is also what keeps the refresh indicator alive when you change
+tabs mid-sync. The page transition is a `template.tsx` *inside* the group for
+the same reason: a template remounts everything under it, so at the root it
+would have rebuilt the header on every tab change.
+
+One consequence worth knowing: a preserved layout is not re-rendered when the
+route below it changes, so nothing in the header may be derived from the
+current route on the server. `NavTabs` reads the path on the client instead.
+
+## Refreshing by hand
+
+`POST /api/refresh` is a route handler rather than a Server Action, and not by
+preference. Next queues client-side navigations behind an in-flight Server
+Action, so while a sync ran — seconds, sometimes longer — the view switcher did
+nothing at all. Measured against a deliberately slowed 12-second sync, a tab
+change landed 12.2s after the click as an action and 72ms as a `fetch`.
+
+Without JavaScript the button is still an ordinary form post to the same
+handler, which redirects back to where it came from.
+
 ## Client-side freshness
 
 `AutoRefresh` calls `router.refresh()` every 30 seconds while the tab is
 visible. That re-runs the server components, which re-query Postgres. It costs
 nothing against the GitHub API budget, which is precisely why it can be that
-frequent.
+frequent. The manual refresh finishes the same way: the handler returns, and
+the client asks for a new render.

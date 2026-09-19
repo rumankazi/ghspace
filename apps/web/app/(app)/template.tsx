@@ -8,6 +8,12 @@
  * query strings, and `AutoRefresh` re-renders every thirty seconds; either one
  * would turn a nice fade into a flicker if this were keyed any less precisely.
  *
+ * It sits inside the route group rather than at the root of `app/` because a
+ * template remounts everything below it, and the nav in `(app)/layout.tsx` is
+ * specifically the thing that must not remount. At the root it would have
+ * rebuilt the shell on every tab change, which is what this directory
+ * structure exists to prevent.
+ *
  * It also wraps `loading.tsx`, so the skeleton is what animates in on
  * navigation and the real content cross-fades over it once it arrives.
  */

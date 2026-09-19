@@ -1,14 +1,11 @@
 import Link from "next/link";
 import { getDashboard, getInstallationCoverage } from "@ghspace/core";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AppNav } from "@/components/app-nav";
-import { AutoRefresh } from "@/components/auto-refresh";
 import { BucketSection } from "@/components/bucket-section";
 import { InstallationCoveragePanel } from "@/components/installation-coverage";
 import { Button } from "@/components/ui/button";
 import { requireUser } from "@/lib/current-user";
 import { installConfigured } from "@/lib/env";
-import { refreshNow } from "./actions";
 
 // Reads a per-user snapshot behind a cookie, so there is nothing to cache.
 export const dynamic = "force-dynamic";
@@ -24,10 +21,7 @@ export default async function DashboardPage() {
   const populated = dashboard.buckets.filter((b) => b.count > 0);
 
   return (
-    <div className="animate-content-in mx-auto max-w-5xl px-4 py-8 sm:px-6">
-      <AutoRefresh />
-      <AppNav current="/dashboard" user={user} sync={dashboard.sync} refreshAction={refreshNow} />
-
+    <div className="animate-content-in">
       {dashboard.sync.status === "failed" && dashboard.sync.error ? (
         <Alert className="mb-6">
           <AlertTitle>The last refresh did not complete</AlertTitle>
