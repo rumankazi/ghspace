@@ -16,7 +16,7 @@ export default async function Home({
   const { error } = await searchParams;
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-6 px-6 py-16">
+    <main className="animate-content-in mx-auto flex min-h-screen max-w-md flex-col justify-center gap-6 px-6 py-16">
       <div className="space-y-2">
         <h1 className="text-3xl font-semibold tracking-tight">ghspace</h1>
         <p className="text-muted-foreground text-sm leading-relaxed">

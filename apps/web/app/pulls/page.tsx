@@ -62,7 +62,7 @@ export default async function PullsPage({
   nextParams.set("offset", String(offset + PAGE_SIZE));
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+    <div className="animate-content-in mx-auto max-w-5xl px-4 py-8 sm:px-6">
       <AutoRefresh />
       <AppNav current="/pulls" user={user} sync={sync} refreshAction={refreshNow} />
 

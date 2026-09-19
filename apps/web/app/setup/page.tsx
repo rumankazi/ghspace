@@ -34,7 +34,7 @@ export default async function SetupPage({
   const connected = coverage.length > 0;
 
   return (
-    <main className="mx-auto max-w-2xl px-4 py-12 sm:px-6">
+    <main className="animate-content-in mx-auto max-w-2xl px-4 py-12 sm:px-6">
       <div className="space-y-2">
         <h1 className="text-2xl font-semibold tracking-tight">
           {connected ? "Add another account" : "Choose what ghspace can see"}
