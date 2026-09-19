@@ -28,11 +28,13 @@ export function LoadingLabel({ children }: { children: string }) {
 
 export function AppNavSkeleton() {
   return (
-    <div className="mb-6 flex flex-wrap items-center gap-x-4 gap-y-3">
+    <div className="mb-6 flex flex-wrap items-center gap-x-3 gap-y-3">
       {/* The view switcher: two tabs inside a p-1 pill. */}
-      <Skeleton className="h-9 w-52 rounded-lg" />
-      <Skeleton className="mr-auto h-3.5 w-44" />
-      <Skeleton className="h-8 w-24" />
+      <Skeleton className="mr-auto h-9 w-52 rounded-lg" />
+      {/* The refresh button, its budget gauge, and the age beside it. */}
+      <Skeleton className="size-8" />
+      <Skeleton className="h-3.5 w-14" />
+      <Skeleton className="size-8" />
       <Skeleton className="h-8 w-28" />
     </div>
   );

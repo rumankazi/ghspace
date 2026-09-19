@@ -137,6 +137,7 @@ export async function syncInstallation(
         itemsSynced: nodes.length,
         rateLimitCost: rateLimit?.cost,
         rateLimitRemaining: rateLimit?.remaining,
+        rateLimitLimit: rateLimit?.limit,
         rateLimitResetAt: rateLimit?.resetAt,
       })
       .where(eq(syncRuns.id, syncRunId));

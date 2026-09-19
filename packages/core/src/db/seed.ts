@@ -559,6 +559,7 @@ async function seed(): Promise<void> {
     itemsSynced: SEED_PRS.length,
     rateLimitCost: 4,
     rateLimitRemaining: 4_962,
+    rateLimitLimit: 5_000,
     rateLimitResetAt: new Date(NOW + 41 * 60_000),
   });
 

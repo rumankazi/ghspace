@@ -1,0 +1,1 @@
+ALTER TABLE "sync_runs" ADD COLUMN "rate_limit_limit" integer;
