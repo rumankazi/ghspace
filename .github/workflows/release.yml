@@ -1,0 +1,99 @@
+# Migrate, then deploy. In that order, with the deploy conditional on the
+# migration.
+#
+# WHY THIS EXISTS
+#
+# The `migrations` job in ci.yml looks like it covers production and does not.
+# It migrates a throwaway Postgres service container to prove two things about
+# the *code*: that the SQL applies cleanly to a fresh database, and that
+# schema.ts has not drifted from the committed migrations. Its DATABASE_URL
+# points at localhost inside the runner. Production was never in scope.
+#
+# So applying a migration and deploying the code that needs it were separate
+# acts with nothing connecting them, and 0004 is what happened when nobody
+# remembered: Vercel shipped code selecting sync_runs.rate_limit_limit, Postgres
+# did not have the column, and every dashboard render failed with 42703. The
+# worker went down with it — installation-sync writes that column too, so its
+# first INSERT failed and pull request data stopped being refreshed entirely.
+#
+# Note what did *not* fail: the SQL. ci.yml validated 0004 against a fresh
+# database on the pull request and passed, correctly. A migration can be
+# perfectly valid and still take production down if nothing runs it. That is the
+# gap this closes, and it is why the fix is ordering rather than another test.
+#
+# HOW
+#
+# Vercel's automatic production deploy is turned off for this project in
+# apps/web/vercel.json, so `main` no longer deploys itself. It deploys here,
+# and only after `migrate` succeeds. A failed migration now means the old code
+# keeps running against the old schema — which is a working site — instead of
+# new code meeting a schema that does not match it.
+#
+# Preview deployments are untouched: deploymentEnabled disables the `main`
+# branch only, so pull requests still get their preview URL from Vercel
+# directly.
+#
+# The migrate job runs on every push rather than only when drizzle/** changes.
+# It has to: the point is that a deploy never goes out ahead of its schema, and
+# scoping by path would mean most deploys skipped the check that establishes
+# that. Applying zero pending migrations is a no-op that costs a few seconds.
+#
+# Required repository secrets:
+#   DATABASE_URL   already present, used by sync.yml
+#   VERCEL_TOKEN   new — Vercel → Account Settings → Tokens, scoped to the team
+#
+# VERCEL_ORG_ID and VERCEL_PROJECT_ID are identifiers rather than credentials —
+# they appear in deployment URLs and Vercel's own documentation treats them as
+# non-secret — so they are inline here to keep the workflow self-describing.
+name: release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  # Two releases must not interleave a migration with the other's deploy.
+  group: ghspace-release
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4"
+
+      - run: bun install --frozen-lockfile
+
+      # migrate.ts reads DATABASE_URL from process.env directly rather than
+      # through env(), so this job needs no other secret to start up.
+      - name: Apply pending migrations
+        working-directory: packages/core
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          # A short-lived job against a managed free tier, which has few
+          # connections to spare. Matches sync.yml.
+          DATABASE_POOL_MAX: "1"
+        run: bun run src/db/migrate.ts
+
+  deploy:
+    needs: migrate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      # Deployed from the repository root, not apps/web: the Vercel project's
+      # Root Directory setting selects apps/web out of the uploaded tree, and
+      # the workspace dependency on @ghspace/core only resolves if the whole
+      # monorepo is there to resolve it against.
+      - name: Deploy web to production
+        env:
+          VERCEL_ORG_ID: team_Hl4B3GUINipqNIAXYYTKTcvJ
+          VERCEL_PROJECT_ID: prj_CZjhPg8GAiZ3TTAA95ESDJrjFWw7
+        run: bunx vercel@latest deploy --prod --yes --token="${{ secrets.VERCEL_TOKEN }}"
