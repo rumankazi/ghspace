@@ -21,7 +21,7 @@ export default async function DashboardPage() {
     getInstallationCoverage(user.id),
   ]);
 
-  const populated = dashboard.buckets.filter((b) => b.pullRequests.length > 0);
+  const populated = dashboard.buckets.filter((b) => b.count > 0);
 
   return (
     <div className="animate-content-in mx-auto max-w-5xl px-4 py-8 sm:px-6">

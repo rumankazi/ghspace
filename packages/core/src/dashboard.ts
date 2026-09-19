@@ -83,6 +83,64 @@ function needsAttention(pr: DashboardPullRequest): boolean {
   );
 }
 
+export interface RepositoryGroup {
+  repository: DashboardPullRequest["repository"];
+  pullRequests: DashboardPullRequest[];
+  /** Failing checks or a merge conflict — worth surfacing on a closed group. */
+  needsAttentionCount: number;
+}
+
+/**
+ * Collapses an already repository-ordered list into one group per repository.
+ *
+ * Runs off adjacency rather than a map keyed by repository, so a list that is
+ * *not* ordered by repository degrades into several visibly repeated groups
+ * instead of silently reordering the rows. Both callers sort before calling,
+ * and that sort — not this function — decides what the page shows.
+ */
+function groupByRepository(ordered: DashboardPullRequest[]): RepositoryGroup[] {
+  const groups: RepositoryGroup[] = [];
+
+  for (const pr of ordered) {
+    let group = groups.at(-1);
+
+    if (!group || group.repository.id !== pr.repository.id) {
+      group = { repository: pr.repository, pullRequests: [], needsAttentionCount: 0 };
+      groups.push(group);
+    }
+
+    group.pullRequests.push(pr);
+
+    if (needsAttention(pr)) group.needsAttentionCount += 1;
+  }
+
+  return groups;
+}
+
+/**
+ * Reorders a list so each repository's rows sit together, without disturbing
+ * the order the caller put them in.
+ *
+ * A repository lands where its first row already was, and its rows keep their
+ * relative order inside it — so a bucket sorted "most urgent first" stays most
+ * urgent first, one repository at a time, rather than being re-sorted by name.
+ * That matters on the triage view, where alphabetical order would push a fresh
+ * conflict below a week-old bump purely because of the owner's initials.
+ */
+function clusterByRepository(ordered: DashboardPullRequest[]): DashboardPullRequest[] {
+  const rank = new Map<string, number>();
+
+  for (const pr of ordered) {
+    if (!rank.has(pr.repository.id)) rank.set(pr.repository.id, rank.size);
+  }
+
+  // Stable by specification, so rows within one repository keep the order the
+  // caller chose for them.
+  return [...ordered].sort(
+    (a, b) => (rank.get(a.repository.id) ?? 0) - (rank.get(b.repository.id) ?? 0),
+  );
+}
+
 interface PullRequestRow {
   pr: typeof pullRequests.$inferSelect;
   repo: typeof repositories.$inferSelect;
@@ -176,7 +234,10 @@ export interface DashboardBucket {
   key: TriageBucket;
   label: string;
   description: string;
-  pullRequests: DashboardPullRequest[];
+  /** The bucket's pull requests, sub-divided by repository. */
+  groups: RepositoryGroup[];
+  /** How many pull requests the bucket holds, across all of its groups. */
+  count: number;
   /** Routinely large and low-stakes; the UI opens these closed. */
   collapsed: boolean;
   /** Failing checks or a merge conflict — worth surfacing on a closed bucket. */
@@ -267,11 +328,17 @@ export async function getDashboard(userId: string): Promise<Dashboard> {
         )
       : contents;
 
+    // Clustered rather than sorted by name, so the rule above survives the
+    // sub-division: a repository sits where its most urgent row already put it,
+    // and the same "unhealthy first" ordering then applies inside it. Each
+    // group carries its own attention count for the same reason the bucket
+    // does — a failing bump must not be able to hide inside a shut group.
     return {
       key,
       label: BUCKET_LABELS[key],
       description: BUCKET_DESCRIPTIONS[key],
-      pullRequests: ordered,
+      groups: groupByRepository(clusterByRepository(ordered)),
+      count: ordered.length,
       collapsed: COLLAPSED_BY_DEFAULT.includes(key),
       needsAttentionCount: contents.filter(needsAttention).length,
     };
@@ -297,11 +364,6 @@ export interface PullRequestFilters {
   offset?: number;
 }
 
-export interface RepositoryGroup {
-  repository: DashboardPullRequest["repository"];
-  pullRequests: DashboardPullRequest[];
-}
-
 export interface PullRequestPage {
   /** This page's pull requests, grouped by the repository they belong to. */
   groups: RepositoryGroup[];
@@ -310,27 +372,6 @@ export interface PullRequestPage {
   /** How many match the filters in total, across every page. */
   total: number;
   hasMore: boolean;
-}
-
-/**
- * Collapses an already repository-ordered list into one group per repository.
- *
- * Runs off adjacency rather than a map keyed by repository, so a list that is
- * *not* ordered by repository degrades into several groups for the same
- * repository instead of silently reordering the page — the caller's ordering
- * stays the single source of truth for what the page shows.
- */
-function groupByRepository(pullRequests: DashboardPullRequest[]): RepositoryGroup[] {
-  const groups: RepositoryGroup[] = [];
-
-  for (const pr of pullRequests) {
-    const current = groups.at(-1);
-
-    if (current && current.repository.id === pr.repository.id) current.pullRequests.push(pr);
-    else groups.push({ repository: pr.repository, pullRequests: [pr] });
-  }
-
-  return groups;
 }
 
 /**

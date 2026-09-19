@@ -1,5 +1,6 @@
 import type { RepositoryGroup } from "@ghspace/core";
 import { ChevronRight, Lock } from "lucide-react";
+import { AttentionChip } from "@/components/attention-chip";
 import { PullRequestCard } from "@/components/pull-request-card";
 
 /**
@@ -33,6 +34,10 @@ export function RepositorySection({ group }: { group: RepositoryGroup }) {
         <span className="text-muted-foreground text-xs tabular-nums">
           {group.pullRequests.length}
         </span>
+
+        {/* Shown on the closed summary too: a conflict must not be able to hide
+            inside a folded repository. */}
+        <AttentionChip count={group.needsAttentionCount} />
       </summary>
 
       <ul className="divide-border divide-y">

@@ -77,7 +77,17 @@ function PullRequestRowsSkeleton({ rows }: { rows: number }) {
   );
 }
 
-/** Stands in for a `BucketSection`: bordered card, header strip, rows. */
+/** The tinted `owner/name` strip that heads each repository inside a bucket. */
+function RepositoryHeadingSkeleton() {
+  return (
+    <div className="border-border bg-muted/30 flex h-7 items-center gap-2 border-b px-4">
+      <Skeleton className="h-2.5 w-28" />
+      <Skeleton className="h-2.5 w-3" />
+    </div>
+  );
+}
+
+/** Stands in for a `BucketSection`: bordered card, header strip, grouped rows. */
 export function BucketSectionSkeleton({ rows }: { rows: number }) {
   return (
     <div className="border-border bg-card overflow-hidden rounded-lg border">
@@ -86,6 +96,7 @@ export function BucketSectionSkeleton({ rows }: { rows: number }) {
         <Skeleton className="h-3.5 w-32" />
         <Skeleton className="h-3 w-4" />
       </div>
+      <RepositoryHeadingSkeleton />
       <PullRequestRowsSkeleton rows={rows} />
     </div>
   );
