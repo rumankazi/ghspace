@@ -9,7 +9,7 @@
 #
 # Or just `docker compose up`, which builds both.
 
-FROM oven/bun:1.3-alpine AS base
+FROM oven/bun:1.4-alpine AS base
 WORKDIR /app
 ENV NODE_ENV=production
 # Bun installs packages and runs the worker, but Next.js is a Node framework:
