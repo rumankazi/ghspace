@@ -7,7 +7,7 @@
     "dev": "bun --env-file=../../.env next dev --turbopack -p 3000",
     "build": "next build",
     "start": "next start -p 3000",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "next typegen && tsc --noEmit"
   },
   "dependencies": {
     "@ghspace/core": "workspace:*",
