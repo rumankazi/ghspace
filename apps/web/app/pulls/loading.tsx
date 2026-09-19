@@ -2,7 +2,7 @@ import {
   AppNavSkeleton,
   LoadingLabel,
   PullRequestFiltersSkeleton,
-  PullRequestRowsSkeleton,
+  RepositorySectionSkeleton,
 } from "@/components/skeletons";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -18,8 +18,10 @@ export default function PullsLoading() {
         <Skeleton className="h-3 w-40" />
       </div>
 
-      <div className="border-border bg-card overflow-hidden rounded-lg border">
-        <PullRequestRowsSkeleton rows={8} />
+      {/* Two repositories' worth: enough to read as grouped rather than flat. */}
+      <div className="space-y-3">
+        <RepositorySectionSkeleton rows={4} />
+        <RepositorySectionSkeleton rows={3} />
       </div>
     </div>
   );

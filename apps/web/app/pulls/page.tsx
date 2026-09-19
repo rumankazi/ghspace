@@ -2,8 +2,8 @@ import Link from "next/link";
 import { getFilterOptions, getPullRequests, getSyncState } from "@ghspace/core";
 import { AppNav } from "@/components/app-nav";
 import { AutoRefresh } from "@/components/auto-refresh";
-import { PullRequestCard } from "@/components/pull-request-card";
 import { PullRequestFilters } from "@/components/pull-request-filters";
+import { RepositorySection } from "@/components/repository-section";
 import { Button } from "@/components/ui/button";
 import { requireUser } from "@/lib/current-user";
 import { refreshNow } from "@/app/dashboard/actions";
@@ -13,11 +13,16 @@ export const dynamic = "force-dynamic";
 const PAGE_SIZE = 50;
 
 /**
- * Every open pull request this user can see, filterable.
+ * Every open pull request this user can see, grouped by repository and
+ * filterable.
  *
  * The sync fetches repositories whole rather than asking GitHub about one
  * person, so this view costs nothing extra — the data is already local, and
  * filtering is a database query rather than another API call.
+ *
+ * The page is a run of whole repositories rather than a slice through all of
+ * them (see `getPullRequests`), so "load more" continues where the last section
+ * left off instead of reopening repositories already shown.
  */
 export default async function PullsPage({
   searchParams,
@@ -52,7 +57,7 @@ export default async function PullsPage({
     getSyncState(user.id),
   ]);
 
-  const shown = offset + page.pullRequests.length;
+  const shown = offset + page.count;
   const nextParams = new URLSearchParams();
 
   for (const [key, value] of Object.entries(params)) {
@@ -74,14 +79,15 @@ export default async function PullsPage({
         <>
           <p className="text-muted-foreground mb-2 text-xs tabular-nums">
             {page.total.toLocaleString()} open pull request{page.total === 1 ? "" : "s"}
-            {page.total > page.pullRequests.length ? ` · showing ${shown.toLocaleString()}` : ""}
+            {page.total > page.count ? ` · showing ${shown.toLocaleString()}` : ""}
+            {` · ${page.groups.length.toLocaleString()} repositor${page.groups.length === 1 ? "y" : "ies"} below`}
           </p>
 
-          <ul className="border-border bg-card divide-border divide-y overflow-hidden rounded-lg border">
-            {page.pullRequests.map((pr) => (
-              <PullRequestCard key={pr.id} pr={pr} />
+          <div className="space-y-3">
+            {page.groups.map((group) => (
+              <RepositorySection key={group.repository.id} group={group} />
             ))}
-          </ul>
+          </div>
 
           {page.hasMore ? (
             <div className="mt-4 flex justify-center">
