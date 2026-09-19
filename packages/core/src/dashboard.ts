@@ -1,4 +1,4 @@
-import { and, desc, eq, exists, ilike, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, exists, ilike, inArray, sql } from "drizzle-orm";
 import { db } from "./db/client.ts";
 import {
   installations,
@@ -297,14 +297,45 @@ export interface PullRequestFilters {
   offset?: number;
 }
 
-export interface PullRequestPage {
+export interface RepositoryGroup {
+  repository: DashboardPullRequest["repository"];
   pullRequests: DashboardPullRequest[];
+}
+
+export interface PullRequestPage {
+  /** This page's pull requests, grouped by the repository they belong to. */
+  groups: RepositoryGroup[];
+  /** How many pull requests this page holds, across all of its groups. */
+  count: number;
+  /** How many match the filters in total, across every page. */
   total: number;
   hasMore: boolean;
 }
 
 /**
- * The browse view over every open pull request this user can see.
+ * Collapses an already repository-ordered list into one group per repository.
+ *
+ * Runs off adjacency rather than a map keyed by repository, so a list that is
+ * *not* ordered by repository degrades into several groups for the same
+ * repository instead of silently reordering the page — the caller's ordering
+ * stays the single source of truth for what the page shows.
+ */
+function groupByRepository(pullRequests: DashboardPullRequest[]): RepositoryGroup[] {
+  const groups: RepositoryGroup[] = [];
+
+  for (const pr of pullRequests) {
+    const current = groups.at(-1);
+
+    if (current && current.repository.id === pr.repository.id) current.pullRequests.push(pr);
+    else groups.push({ repository: pr.repository, pullRequests: [pr] });
+  }
+
+  return groups;
+}
+
+/**
+ * The browse view over every open pull request this user can see, grouped by
+ * repository.
  *
  * Because the sync fetches repositories whole rather than asking GitHub about
  * one person, this data is already present — filtering is a local query, not
@@ -359,7 +390,11 @@ export async function getPullRequests(
       .from(pullRequests)
       .innerJoin(repositories, eq(pullRequests.repositoryId, repositories.id))
       .where(where)
-      .orderBy(desc(pullRequests.updatedAt))
+      // Repository first, so a page is a run of whole repositories rather than
+      // a slice through all of them: grouping the result is then just a matter
+      // of adjacency, and paging never splits a repository into two sections on
+      // the same screen. Freshness still orders the rows within a repository.
+      .orderBy(asc(repositories.nameWithOwner), desc(pullRequests.updatedAt))
       .limit(limit)
       .offset(offset),
     db()
@@ -403,7 +438,8 @@ export async function getPullRequests(
   const total = counted?.value ?? 0;
 
   return {
-    pullRequests: assemble(rows, related, reasons),
+    groups: groupByRepository(assemble(rows, related, reasons)),
+    count: rows.length,
     total,
     hasMore: offset + rows.length < total,
   };

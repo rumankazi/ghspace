@@ -66,7 +66,8 @@ function PullRequestRowSkeleton({ index }: { index: number }) {
   );
 }
 
-export function PullRequestRowsSkeleton({ rows }: { rows: number }) {
+/** Only ever seen inside a section skeleton now, never on its own. */
+function PullRequestRowsSkeleton({ rows }: { rows: number }) {
   return (
     <ul className="divide-border divide-y">
       {Array.from({ length: rows }, (_, index) => (
@@ -83,6 +84,20 @@ export function BucketSectionSkeleton({ rows }: { rows: number }) {
       <div className="border-border flex h-11 items-center gap-2.5 border-b px-4">
         <Skeleton className="size-2 shrink-0 rounded-full" />
         <Skeleton className="h-3.5 w-32" />
+        <Skeleton className="h-3 w-4" />
+      </div>
+      <PullRequestRowsSkeleton rows={rows} />
+    </div>
+  );
+}
+
+/** Stands in for a `RepositorySection`: chevron, repository name, count, rows. */
+export function RepositorySectionSkeleton({ rows }: { rows: number }) {
+  return (
+    <div className="border-border bg-card overflow-hidden rounded-lg border">
+      <div className="border-border flex h-11 items-center gap-2.5 border-b px-4">
+        <Skeleton className="size-3.5 shrink-0" />
+        <Skeleton className="h-3.5 w-40" />
         <Skeleton className="h-3 w-4" />
       </div>
       <PullRequestRowsSkeleton rows={rows} />

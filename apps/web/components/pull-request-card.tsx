@@ -68,7 +68,17 @@ const REVIEW_LABELS: Record<string, { label: string; className: string }> = {
   REVIEW_REQUIRED: { label: "Review required", className: "text-muted-foreground" },
 };
 
-export function PullRequestCard({ pr }: { pr: DashboardPullRequest }) {
+/**
+ * `showRepository` is false under a repository heading on the browse view,
+ * where repeating the name on every row says nothing the header has not.
+ */
+export function PullRequestCard({
+  pr,
+  showRepository = true,
+}: {
+  pr: DashboardPullRequest;
+  showRepository?: boolean;
+}) {
   const review = pr.reviewDecision ? REVIEW_LABELS[pr.reviewDecision] : undefined;
 
   const reviewers = [
@@ -111,8 +121,12 @@ export function PullRequestCard({ pr }: { pr: DashboardPullRequest }) {
 
         <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs">
           <span className="inline-flex items-center gap-1 font-mono">
-            {pr.repository.isPrivate ? <Lock className="size-3" aria-label="Private" /> : null}
-            {pr.repository.nameWithOwner}
+            {showRepository ? (
+              <>
+                {pr.repository.isPrivate ? <Lock className="size-3" aria-label="Private" /> : null}
+                {pr.repository.nameWithOwner}
+              </>
+            ) : null}
             <span className="opacity-60">#{pr.number}</span>
           </span>
 
