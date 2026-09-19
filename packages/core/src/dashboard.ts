@@ -189,6 +189,9 @@ export interface SyncState {
   lastSuccessAt: Date | null;
   error: string | null;
   rateLimitRemaining: number | null;
+  /** The ceiling `rateLimitRemaining` counts down from; null on runs recorded
+   *  before the limit was persisted, which the UI shows without a meter. */
+  rateLimitLimit: number | null;
   rateLimitResetAt: Date | null;
 }
 
@@ -473,6 +476,7 @@ export async function getSyncState(userId: string): Promise<SyncState> {
       lastSuccessAt: null,
       error: null,
       rateLimitRemaining: null,
+      rateLimitLimit: null,
       rateLimitResetAt: null,
     };
   }
@@ -503,6 +507,7 @@ export async function getSyncState(userId: string): Promise<SyncState> {
     lastSuccessAt: oldestSuccess ?? null,
     error: latest.status === "failed" ? latest.error : null,
     rateLimitRemaining: withBudget?.rateLimitRemaining ?? null,
+    rateLimitLimit: withBudget?.rateLimitLimit ?? null,
     rateLimitResetAt: withBudget?.rateLimitResetAt ?? null,
   };
 }

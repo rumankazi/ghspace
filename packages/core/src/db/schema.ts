@@ -410,6 +410,13 @@ export const syncRuns = pgTable(
 
     rateLimitCost: integer(),
     rateLimitRemaining: integer(),
+    /**
+     * The ceiling `rateLimitRemaining` counts down from. Stored rather than
+     * assumed because a GitHub App's GraphQL budget scales with the size of the
+     * installation above the 5,000 floor, so the denominator is a property of
+     * the account and not a constant.
+     */
+    rateLimitLimit: integer(),
     rateLimitResetAt: timestamp({ withTimezone: true }),
   },
   (t) => [
