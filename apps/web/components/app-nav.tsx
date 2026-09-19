@@ -1,49 +1,27 @@
-import Link from "next/link";
-import type { Route } from "next";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { NavTabs } from "@/components/nav-tabs";
 import { RefreshControl } from "@/components/refresh-control";
 import { ThemeToggle } from "@/components/theme-toggle";
 import type { SyncState } from "@ghspace/core";
-import { cn } from "@/lib/utils";
 
-const TABS: { href: Route; label: string }[] = [
-  { href: "/dashboard", label: "Triage" },
-  { href: "/pulls", label: "All pull requests" },
-];
-
+/**
+ * The application header, rendered once by `(app)/layout.tsx` and held across
+ * every navigation inside it. Nothing here may depend on which route is
+ * showing — see `NavTabs` for why.
+ */
 export function AppNav({
-  current,
   user,
   sync,
-  refreshAction,
 }: {
-  current: Route;
   user: { githubLogin: string; avatarUrl: string | null };
   sync: SyncState;
-  refreshAction: () => Promise<void>;
 }) {
   return (
     <header className="mb-6 flex flex-wrap items-center gap-x-3 gap-y-3">
-      <nav className="bg-muted mr-auto flex items-center gap-1 rounded-lg p-1" aria-label="Views">
-        {TABS.map((tab) => (
-          <Link
-            key={tab.href}
-            href={tab.href}
-            aria-current={current === tab.href ? "page" : undefined}
-            className={cn(
-              "rounded-md px-3 py-1 text-sm transition-colors",
-              current === tab.href
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {tab.label}
-          </Link>
-        ))}
-      </nav>
+      <NavTabs />
 
-      <RefreshControl sync={sync} refreshAction={refreshAction} />
+      <RefreshControl sync={sync} />
 
       <ThemeToggle />
 

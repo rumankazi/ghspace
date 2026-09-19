@@ -32,8 +32,8 @@ export function AppNavSkeleton() {
       {/* The view switcher: two tabs inside a p-1 pill. */}
       <Skeleton className="mr-auto h-9 w-52 rounded-lg" />
       {/* The refresh button, its budget gauge, and the age beside it. */}
-      <Skeleton className="size-8" />
-      <Skeleton className="h-3.5 w-14" />
+      <Skeleton className="size-8 rounded-full" />
+      <Skeleton className="h-3.5 w-16" />
       <Skeleton className="size-8" />
       <Skeleton className="h-8 w-28" />
     </div>

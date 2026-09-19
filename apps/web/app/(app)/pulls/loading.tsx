@@ -1,5 +1,4 @@
 import {
-  AppNavSkeleton,
   LoadingLabel,
   PullRequestFiltersSkeleton,
   RepositorySectionSkeleton,
@@ -8,9 +7,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export default function PullsLoading() {
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+    <div>
       <LoadingLabel>Loading pull requests</LoadingLabel>
-      <AppNavSkeleton />
       <PullRequestFiltersSkeleton />
 
       {/* The count line above the list. */}
