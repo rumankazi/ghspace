@@ -88,6 +88,13 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # Needed for bunx. The deploy installs nothing and builds nothing — Vercel
+      # does both remotely — but the runner has no bun until this step adds it,
+      # which is how the first release run reached `bunx: command not found`.
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4"
+
       # Deployed from the repository root, not apps/web: the Vercel project's
       # Root Directory setting selects apps/web out of the uploaded tree, and
       # the workspace dependency on @ghspace/core only resolves if the whole
