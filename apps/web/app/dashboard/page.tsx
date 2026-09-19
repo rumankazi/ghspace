@@ -24,7 +24,7 @@ export default async function DashboardPage() {
   const populated = dashboard.buckets.filter((b) => b.pullRequests.length > 0);
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+    <div className="animate-content-in mx-auto max-w-5xl px-4 py-8 sm:px-6">
       <AutoRefresh />
       <AppNav current="/dashboard" user={user} sync={dashboard.sync} refreshAction={refreshNow} />
 
