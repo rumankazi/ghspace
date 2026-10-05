@@ -30,11 +30,11 @@
     "typecheck": "bun run --filter '*' typecheck"
   },
   "devDependencies": {
-    "@oxlint/plugins": "1.83.0",
+    "@oxlint/plugins": "1.87.0",
     "@types/bun": "latest",
     "@types/pg": "^8.15.5",
     "fallow": "3.27.0",
-    "oxlint": "1.83.0",
+    "oxlint": "1.87.0",
     "typescript": "^7.0.0"
   },
   "dependencies": {
