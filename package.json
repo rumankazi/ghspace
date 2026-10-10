@@ -33,7 +33,7 @@
     "@oxlint/plugins": "1.83.0",
     "@types/bun": "latest",
     "@types/pg": "^8.15.5",
-    "fallow": "3.27.0",
+    "fallow": "3.33.1",
     "oxlint": "1.83.0",
     "typescript": "^7.0.0"
   },
