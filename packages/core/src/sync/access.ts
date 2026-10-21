@@ -1,8 +1,7 @@
-import { and, eq, lt, sql } from "drizzle-orm";
+import { and, eq, lt } from "drizzle-orm";
 import { db } from "../db/client.ts";
 import {
   installations,
-  repositories,
   syncRuns,
   userInstallations,
   userRepositoryAccess,
@@ -11,14 +10,11 @@ import { createGitHubClient } from "../github/client.ts";
 import { fetchUserInstallations } from "../github/installations.ts";
 import { listAccessibleRepositories } from "../github/user-repos.ts";
 import { log, timed } from "../lib/logger.ts";
+import { upsertRepositories } from "./repositories.ts";
 import { failRun } from "./runs.ts";
 import { getUserWithApiBase, getValidAccessToken } from "./tokens.ts";
 
 export const ACCESS_SYNC_KIND = "user_access";
-
-function sqlExcluded(column: string) {
-  return sql.raw(`excluded."${column}"`);
-}
 
 export interface AccessSyncOutcome {
   installationCount: number;
@@ -112,32 +108,7 @@ export async function syncUserAccess(userId: string): Promise<AccessSyncOutcome>
         // because whichever of the two runs first has to be able to create the
         // row the access record points at. `installationId` is deliberately not
         // set from this path — the installation sync owns that column.
-        const repoRows = await tx
-          .insert(repositories)
-          .values(
-            accessible.map((repo) => ({
-              nodeId: repo.nodeId,
-              owner: repo.owner,
-              name: repo.name,
-              nameWithOwner: repo.nameWithOwner,
-              isPrivate: repo.isPrivate,
-              isArchived: repo.isArchived,
-              url: repo.url,
-              syncedAt: seenAt,
-            })),
-          )
-          .onConflictDoUpdate({
-            target: repositories.nodeId,
-            set: {
-              owner: sqlExcluded("owner"),
-              name: sqlExcluded("name"),
-              nameWithOwner: sqlExcluded("name_with_owner"),
-              isPrivate: sqlExcluded("is_private"),
-              isArchived: sqlExcluded("is_archived"),
-              url: sqlExcluded("url"),
-            },
-          })
-          .returning({ id: repositories.id });
+        const repoRows = await upsertRepositories(tx, accessible, { syncedAt: seenAt });
 
         await tx
           .insert(userRepositoryAccess)

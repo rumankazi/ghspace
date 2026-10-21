@@ -10,6 +10,8 @@ export * from "./queries.ts";
 
 export * from "./repo-queries.ts";
 
+export * from "./repo-listing.ts";
+
 export * from "./installations.ts";
 
 export * from "./user-repos.ts";

@@ -1,4 +1,4 @@
-import { and, eq, inArray, lt, sql } from "drizzle-orm";
+import { and, eq, inArray, lt } from "drizzle-orm";
 import { db } from "../db/client.ts";
 import {
   installations,
@@ -16,6 +16,7 @@ import {
   type MergeableState,
   type ReviewDecision,
 } from "../db/schema.ts";
+import { sqlExcluded } from "../db/sql.ts";
 import { createInstallationClient } from "../github/app.ts";
 import type { RateLimitSnapshot } from "../github/client.ts";
 import {
@@ -26,6 +27,7 @@ import {
 import type { PullRequestNode } from "../github/pull-request-fields.ts";
 import { log, timed } from "../lib/logger.ts";
 import { recomputeInvolvement } from "./involvement.ts";
+import { upsertRepositories } from "./repositories.ts";
 import { failRun } from "./runs.ts";
 
 export const INSTALLATION_SYNC_KIND = "installation_pull_requests";
@@ -36,10 +38,6 @@ export interface InstallationSyncOutcome {
   pullRequestCount: number;
   involvementCount: number;
   rateLimit?: RateLimitSnapshot;
-}
-
-function sqlExcluded(column: string) {
-  return sql.raw(`excluded."${column}"`);
 }
 
 /**
@@ -189,35 +187,7 @@ async function writeSnapshot(
     const repoIdByNodeId = new Map<string, string>();
 
     if (repos.length > 0) {
-      const rows = await tx
-        .insert(repositories)
-        .values(
-          repos.map((repo) => ({
-            nodeId: repo.nodeId,
-            owner: repo.owner,
-            name: repo.name,
-            nameWithOwner: repo.nameWithOwner,
-            isPrivate: repo.isPrivate,
-            isArchived: repo.isArchived,
-            url: repo.url,
-            installationId,
-            syncedAt: startedAt,
-          })),
-        )
-        .onConflictDoUpdate({
-          target: repositories.nodeId,
-          set: {
-            owner: sqlExcluded("owner"),
-            name: sqlExcluded("name"),
-            nameWithOwner: sqlExcluded("name_with_owner"),
-            isPrivate: sqlExcluded("is_private"),
-            isArchived: sqlExcluded("is_archived"),
-            url: sqlExcluded("url"),
-            installationId: sqlExcluded("installation_id"),
-            syncedAt: startedAt,
-          },
-        })
-        .returning({ id: repositories.id, nodeId: repositories.nodeId });
+      const rows = await upsertRepositories(tx, repos, { syncedAt: startedAt, installationId });
 
       for (const row of rows) repoIdByNodeId.set(row.nodeId, row.id);
     }
