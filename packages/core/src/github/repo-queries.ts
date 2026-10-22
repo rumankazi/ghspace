@@ -2,37 +2,21 @@ import { z } from "zod";
 import type { GitHubClient, RateLimitSnapshot } from "./client.ts";
 import { graphqlAllowingPartial, toRateLimitSnapshot } from "./client.ts";
 import { PR_FIELDS, prNode, type PullRequestNode } from "./pull-request-fields.ts";
+import { listRepositories, type ListedRepository } from "./repo-listing.ts";
 import { log } from "../lib/logger.ts";
 
 // ---------------------------------------------------------------------------
 // Repository listing
 // ---------------------------------------------------------------------------
 
-const installationRepo = z.object({
-  id: z.number(),
-  node_id: z.string(),
-  name: z.string(),
-  full_name: z.string(),
-  private: z.boolean(),
-  archived: z.boolean().optional().default(false),
-  html_url: z.string(),
-  owner: z.object({ login: z.string(), avatar_url: z.string().optional() }),
-});
-
-const installationReposResponse = z.object({
-  total_count: z.number(),
-  repositories: z.array(installationRepo),
-});
-
-export interface InstallationRepository {
-  nodeId: string;
-  owner: string;
-  name: string;
-  nameWithOwner: string;
-  isPrivate: boolean;
-  isArchived: boolean;
-  url: string;
-}
+/**
+ * The repositories this installation can reach.
+ *
+ * The same shape as the per-user listing: both endpoints return the same
+ * repository objects, so the two are one type under the name each call site
+ * reads best with.
+ */
+export type InstallationRepository = ListedRepository;
 
 /**
  * Every repository this installation can reach. REST rather than GraphQL
@@ -41,32 +25,7 @@ export interface InstallationRepository {
 export async function listInstallationRepositories(
   client: GitHubClient,
 ): Promise<InstallationRepository[]> {
-  const results: InstallationRepository[] = [];
-
-  for (let page = 1; ; page++) {
-    const raw = await client.request("GET /installation/repositories", {
-      per_page: 100,
-      page,
-    });
-
-    const parsed = installationReposResponse.parse(raw.data);
-
-    for (const repo of parsed.repositories) {
-      results.push({
-        nodeId: repo.node_id,
-        owner: repo.owner.login,
-        name: repo.name,
-        nameWithOwner: repo.full_name,
-        isPrivate: repo.private,
-        isArchived: repo.archived,
-        url: repo.html_url,
-      });
-    }
-
-    if (results.length >= parsed.total_count || parsed.repositories.length === 0) break;
-  }
-
-  return results;
+  return listRepositories(client, "GET /installation/repositories");
 }
 
 // ---------------------------------------------------------------------------

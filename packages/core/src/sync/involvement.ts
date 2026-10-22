@@ -1,4 +1,4 @@
-import { inArray, sql } from "drizzle-orm";
+import { inArray } from "drizzle-orm";
 import type { Transaction } from "../db/client.ts";
 import {
   pullRequestAssignees,
@@ -11,6 +11,7 @@ import {
   type MergeableState,
   type ReviewDecision,
 } from "../db/schema.ts";
+import { sqlExcluded } from "../db/sql.ts";
 import { classify } from "./buckets.ts";
 
 export interface InvolvedUser {
@@ -197,8 +198,4 @@ function groupLogins<T>(
   }
 
   return map;
-}
-
-function sqlExcluded(column: string) {
-  return sql.raw(`excluded."${column}"`);
 }
