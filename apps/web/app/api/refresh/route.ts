@@ -1,5 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { listInstallationsForSync, syncInstallation, syncUserAccess } from "@ghspace/core/sync";
+import {
+  listInstallationsForSync,
+  syncInstallation,
+  syncInstallationActions,
+  syncUserAccess,
+} from "@ghspace/core/sync";
 import { log } from "@ghspace/core";
 import { appBaseUrl } from "@/lib/env";
 import { getSessionUserId } from "@/lib/session";
@@ -40,6 +45,18 @@ export async function POST(request: NextRequest) {
 
     for (const installation of await listInstallationsForSync()) {
       await syncInstallation(installation.id);
+
+      // Caught here rather than left to the outer handler: Actions needs a
+      // permission pull requests do not, so an account without it must not
+      // stop the remaining installations from refreshing their pull requests.
+      try {
+        await syncInstallationActions(installation.id);
+      } catch (error) {
+        log.warn("manual refresh: actions sync failed", {
+          installation: installation.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
   } catch (error) {
     // The failure is already recorded on `sync_runs`, and the page reads that

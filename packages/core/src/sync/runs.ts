@@ -1,6 +1,6 @@
 import { and, eq, lt, sql } from "drizzle-orm";
 import { db } from "../db/client.ts";
-import { syncRuns } from "../db/schema.ts";
+import { installations, syncRuns } from "../db/schema.ts";
 import { log } from "../lib/logger.ts";
 
 /**
@@ -68,4 +68,38 @@ export async function abandonRun(syncRunId: string, reason: string): Promise<voi
     .update(syncRuns)
     .set({ status: "failed", finishedAt: new Date(), error: reason })
     .where(and(eq(syncRuns.id, syncRunId), eq(syncRuns.status, "running")));
+}
+
+export interface StartedRun {
+  installation: typeof installations.$inferSelect;
+  syncRunId: string;
+}
+
+/**
+ * Loads an installation and opens a sync run against it.
+ *
+ * Shared by the two installation-scoped syncs because the row has to be written
+ * *before* the work starts: a run that is only recorded on success leaves a
+ * crash looking like a sync that never ran, and `reapInterruptedRuns` above has
+ * nothing to reap.
+ */
+export async function startInstallationRun(
+  installationRowId: string,
+  kind: string,
+  startedAt: Date,
+): Promise<StartedRun> {
+  const [installation] = await db()
+    .select()
+    .from(installations)
+    .where(eq(installations.id, installationRowId))
+    .limit(1);
+
+  if (!installation) throw new Error(`No installation ${installationRowId}`);
+
+  const [run] = await db()
+    .insert(syncRuns)
+    .values({ installationId: installation.id, kind, status: "running", startedAt })
+    .returning({ id: syncRuns.id });
+
+  return { installation, syncRunId: run!.id };
 }

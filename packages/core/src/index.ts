@@ -8,6 +8,10 @@ export * from "./sync/index.ts";
 
 export * from "./dashboard.ts";
 
+export * from "./workflow-health.ts";
+
+export * from "./actions.ts";
+
 export { log } from "./lib/logger.ts";
 
 export { encrypt, decrypt } from "./lib/crypto.ts";

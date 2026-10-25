@@ -21,6 +21,10 @@ const listedRepo = z.object({
   private: z.boolean(),
   archived: z.boolean().optional().default(false),
   html_url: z.string(),
+  // Absent on a repository GitHub considers empty, and optional here for the
+  // same reason `id` is: a field one listing might stop sending should not be
+  // able to fail a whole sync.
+  default_branch: z.string().optional(),
   owner: z.object({ login: z.string(), avatar_url: z.string().optional() }),
 });
 
@@ -40,6 +44,8 @@ export interface ListedRepository {
   isPrivate: boolean;
   isArchived: boolean;
   url: string;
+  /** Null for an empty repository, which has no branch to report on yet. */
+  defaultBranch: string | null;
 }
 
 /** The two endpoints that list the repositories of an installation. */
@@ -84,6 +90,7 @@ export async function listRepositories(
         isPrivate: repo.private,
         isArchived: repo.archived,
         url: repo.html_url,
+        defaultBranch: repo.default_branch ?? null,
       });
     }
 

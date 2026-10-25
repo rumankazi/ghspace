@@ -15,3 +15,5 @@ export * from "./repo-listing.ts";
 export * from "./installations.ts";
 
 export * from "./user-repos.ts";
+
+export * from "./actions.ts";

@@ -16,7 +16,9 @@ At [https://github.com/settings/apps/new](https://github.com/settings/apps/new):
 - ✅ Request user authorization (OAuth) during installation
 - ✅ Expire user authorization tokens
 - ❌ Webhooks (not used yet)
-- **Repository permissions**: Pull requests `Read-only`, Metadata `Read-only`
+- **Repository permissions**: Pull requests `Read-only`, Metadata `Read-only`,
+  Actions `Read-only` (for the Actions view; without it that view reports the
+  missing permission as a sync failure and the rest of ghspace is unaffected)
 - **Account permissions**: Email addresses `Read-only` (optional)
 
 Generate a private key and download the `.pem`.

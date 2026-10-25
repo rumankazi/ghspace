@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 const TABS: { href: Route; label: string }[] = [
   { href: "/dashboard", label: "Triage" },
   { href: "/pulls", label: "All pull requests" },
+  { href: "/actions", label: "Actions" },
 ];
 
 /**

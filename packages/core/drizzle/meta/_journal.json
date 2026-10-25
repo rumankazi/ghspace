@@ -36,6 +36,13 @@
       "when": 1789801371861,
       "tag": "0004_medical_goliath",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792926458645,
+      "tag": "0005_serious_lorna_dane",
+      "breakpoints": true
     }
   ]
 }

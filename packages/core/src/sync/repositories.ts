@@ -1,6 +1,6 @@
 import type { Transaction } from "../db/client.ts";
 import { repositories } from "../db/schema.ts";
-import { sqlExcluded } from "../db/sql.ts";
+import { sqlExcluded, sqlExcludedOrKeep } from "../db/sql.ts";
 import type { ListedRepository } from "../github/repo-listing.ts";
 
 /**
@@ -34,6 +34,7 @@ export async function upsertRepositories(
       isPrivate: repo.isPrivate,
       isArchived: repo.isArchived,
       url: repo.url,
+      defaultBranch: repo.defaultBranch,
       syncedAt,
     };
 
@@ -49,6 +50,11 @@ export async function upsertRepositories(
     isPrivate: sqlExcluded("is_private"),
     isArchived: sqlExcluded("is_archived"),
     url: sqlExcluded("url"),
+    // Kept rather than overwritten: a repository that GitHub reports with no
+    // default branch is an empty one, and an empty repository is a state a
+    // push leaves — losing the branch name here would blank the Actions view
+    // for it until the next full listing.
+    defaultBranch: sqlExcludedOrKeep("repositories", "default_branch"),
   };
 
   const set = ownedByInstallation

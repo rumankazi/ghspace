@@ -154,6 +154,12 @@ export const repositories = pgTable(
     isArchived: boolean().notNull().default(false),
     url: text().notNull(),
     /**
+     * The branch the Actions view reports on. Null for a repository seen only
+     * embedded in a pull request from elsewhere, and for an empty repository —
+     * GitHub names a default branch there that does not exist yet.
+     */
+    defaultBranch: text(),
+    /**
      * The installation whose token fetches this repository's pull requests.
      * Null for a repository that was only ever seen embedded in a pull request
      * from elsewhere.
@@ -380,6 +386,83 @@ export const pullRequestInvolvement = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// Actions
+// ---------------------------------------------------------------------------
+
+export type WorkflowRunStatus =
+  | "queued"
+  | "in_progress"
+  | "completed"
+  | "waiting"
+  | "requested"
+  | "pending";
+
+export type WorkflowRunConclusion =
+  | "success"
+  | "failure"
+  | "cancelled"
+  | "skipped"
+  | "timed_out"
+  | "action_required"
+  | "neutral"
+  | "stale"
+  | "startup_failure";
+
+/**
+ * One workflow in one repository, carrying its most recent run on the
+ * repository's default branch.
+ *
+ * Latest run only, not a history. The question this table answers is "is the
+ * default branch healthy right now", and keeping every run would make the
+ * sweep below a retention policy — a decision with no obvious right answer —
+ * rather than the plain replace it is. Run history lives in GitHub, which the
+ * row links to.
+ *
+ * An active workflow with no run on the default branch is still stored, with
+ * the run columns null. A workflow that exists but has never run there is a
+ * real state, and inferring it from an absent row would be indistinguishable
+ * from a sync that never reached the repository.
+ */
+export const repositoryWorkflows = pgTable(
+  "repository_workflows",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    repositoryId: uuid()
+      .notNull()
+      .references(() => repositories.id, { onDelete: "cascade" }),
+    /** GitHub's own workflow id, stable across renames of the file. */
+    githubWorkflowId: bigint({ mode: "number" }).notNull(),
+    name: text().notNull(),
+    /** `.github/workflows/ci.yml`, shown when two workflows share a name. */
+    path: text(),
+
+    /** Null until this workflow has run on the default branch. */
+    runId: bigint({ mode: "number" }),
+    runNumber: integer(),
+    runAttempt: integer(),
+    status: text().$type<WorkflowRunStatus>(),
+    conclusion: text().$type<WorkflowRunConclusion>(),
+    /** `push`, `schedule`, `workflow_dispatch`, ... */
+    event: text(),
+    branch: text(),
+    headSha: text(),
+    headCommitMessage: text(),
+    actorLogin: text(),
+    actorAvatarUrl: text(),
+    /** The run on github.com. Null alongside the rest when there is no run. */
+    runUrl: text(),
+    runStartedAt: timestamp({ withTimezone: true }),
+    runUpdatedAt: timestamp({ withTimezone: true }),
+
+    syncedAt: timestamp({ withTimezone: true }).notNull().default(now),
+  },
+  (t) => [
+    uniqueIndex("repository_workflows_key").on(t.repositoryId, t.githubWorkflowId),
+    index("repository_workflows_repository_idx").on(t.repositoryId),
+  ],
+);
+
+// ---------------------------------------------------------------------------
 // Observability
 // ---------------------------------------------------------------------------
 
@@ -441,6 +524,7 @@ export const usersRelations = relations(users, ({ one, many }) => ({
 
 export const repositoriesRelations = relations(repositories, ({ one, many }) => ({
   pullRequests: many(pullRequests),
+  workflows: many(repositoryWorkflows),
   installation: one(installations, {
     fields: [repositories.installationId],
     references: [installations.id],
@@ -519,5 +603,12 @@ export const userInstallationsRelations = relations(userInstallations, ({ one })
   installation: one(installations, {
     fields: [userInstallations.installationId],
     references: [installations.id],
+  }),
+}));
+
+export const repositoryWorkflowsRelations = relations(repositoryWorkflows, ({ one }) => ({
+  repository: one(repositories, {
+    fields: [repositoryWorkflows.repositoryId],
+    references: [repositories.id],
   }),
 }));

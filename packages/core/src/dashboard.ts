@@ -10,7 +10,6 @@ import {
   repositories,
   syncRuns,
   userInstallations,
-  userRepositoryAccess,
   type SyncStatus,
   type TriageBucket,
 } from "./db/schema.ts";
@@ -21,6 +20,7 @@ import {
   COLLAPSED_BY_DEFAULT,
 } from "./sync/buckets.ts";
 import { INSTALLATION_SYNC_KIND } from "./sync/installation-sync.ts";
+import { visibleToUser } from "./visibility.ts";
 
 export interface DashboardPullRequest {
   id: string;
@@ -49,29 +49,6 @@ export interface DashboardPullRequest {
     isMentioned: boolean;
     hasReviewed: boolean;
   } | null;
-}
-
-/**
- * Restricts a query to repositories this user may see.
- *
- * Pull requests are cached from an *installation* token, which reads every
- * repository in the account — including ones this user has no access to. This
- * predicate is the boundary that keeps them apart, so every public read path in
- * this module composes it. Forgetting it leaks private repositories between
- * users of the same organisation.
- */
-function visibleToUser(userId: string) {
-  return exists(
-    db()
-      .select({ one: sql`1` })
-      .from(userRepositoryAccess)
-      .where(
-        and(
-          eq(userRepositoryAccess.userId, userId),
-          eq(userRepositoryAccess.repositoryId, pullRequests.repositoryId),
-        ),
-      ),
-  );
 }
 
 /** A pull request that will not merge as it stands. */
@@ -280,7 +257,7 @@ export async function getDashboard(userId: string): Promise<Dashboard> {
       .from(pullRequestInvolvement)
       .innerJoin(pullRequests, eq(pullRequestInvolvement.pullRequestId, pullRequests.id))
       .innerJoin(repositories, eq(pullRequests.repositoryId, repositories.id))
-      .where(and(eq(pullRequestInvolvement.userId, userId), visibleToUser(userId)))
+      .where(and(eq(pullRequestInvolvement.userId, userId), visibleToUser(userId, pullRequests.repositoryId)))
       .orderBy(desc(pullRequests.updatedAt)),
     getSyncState(userId),
   ]);
@@ -389,7 +366,7 @@ export async function getPullRequests(
   const limit = Math.min(filters.limit ?? 50, 200);
   const offset = filters.offset ?? 0;
 
-  const conditions = [visibleToUser(userId)];
+  const conditions = [visibleToUser(userId, pullRequests.repositoryId)];
 
   if (filters.repositoryIds && filters.repositoryIds.length > 0) {
     conditions.push(inArray(pullRequests.repositoryId, filters.repositoryIds));
@@ -502,7 +479,7 @@ export async function getFilterOptions(userId: string): Promise<FilterOptions> {
       })
       .from(pullRequests)
       .innerJoin(repositories, eq(pullRequests.repositoryId, repositories.id))
-      .where(visibleToUser(userId))
+      .where(visibleToUser(userId, pullRequests.repositoryId))
       .groupBy(repositories.id, repositories.nameWithOwner)
       .orderBy(repositories.nameWithOwner),
     db()
@@ -512,7 +489,7 @@ export async function getFilterOptions(userId: string): Promise<FilterOptions> {
         openCount: sql<number>`count(*)::int`,
       })
       .from(pullRequests)
-      .where(visibleToUser(userId))
+      .where(visibleToUser(userId, pullRequests.repositoryId))
       .groupBy(pullRequests.authorLogin)
       .orderBy(desc(sql`count(*)`)),
   ]);
@@ -536,13 +513,20 @@ export async function getFilterOptions(userId: string): Promise<FilterOptions> {
  * repositories rather than from a sync of their own, so the worst case across
  * their installations is what gets reported — a dashboard is only as current as
  * its most stale source.
+ *
+ * `kind` selects which job's freshness is being asked about. The Actions sync
+ * is a separate job with a separate permission, so mixing the two would let a
+ * healthy pull request sync report an Actions view that is not updating at all.
  */
-export async function getSyncState(userId: string): Promise<SyncState> {
+export async function getSyncState(
+  userId: string,
+  kind: string = INSTALLATION_SYNC_KIND,
+): Promise<SyncState> {
   const runs = await db()
     .select({ run: syncRuns })
     .from(syncRuns)
     .innerJoin(userInstallations, eq(userInstallations.installationId, syncRuns.installationId))
-    .where(and(eq(userInstallations.userId, userId), eq(syncRuns.kind, INSTALLATION_SYNC_KIND)))
+    .where(and(eq(userInstallations.userId, userId), eq(syncRuns.kind, kind)))
     .orderBy(desc(syncRuns.startedAt))
     .limit(50);
 
