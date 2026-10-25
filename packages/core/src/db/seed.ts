@@ -7,6 +7,7 @@ import {
   pullRequestReviews,
   pullRequests,
   repositories,
+  repositoryWorkflows,
   syncRuns,
   userInstallations,
   userRepositoryAccess,
@@ -15,6 +16,8 @@ import {
   type MergeableState,
   type PullRequestState,
   type ReviewDecision,
+  type WorkflowRunConclusion,
+  type WorkflowRunStatus,
 } from "./schema.ts";
 import { classify } from "../sync/buckets.ts";
 import { pullRequestInvolvement } from "./schema.ts";
@@ -65,11 +68,109 @@ const PEOPLE = [
 ] as const;
 
 const REPOS = [
-  { name: "platform-api", private: true },
-  { name: "web-client", private: true },
-  { name: "design-system", private: false },
-  { name: "infra-terraform", private: true },
+  { name: "platform-api", private: true, defaultBranch: "main" },
+  { name: "web-client", private: true, defaultBranch: "main" },
+  { name: "design-system", private: false, defaultBranch: "main" },
+  { name: "infra-terraform", private: true, defaultBranch: "master" },
 ] as const;
+
+interface SeedWorkflow {
+  repo: string;
+  name: string;
+  path: string;
+  status?: WorkflowRunStatus;
+  conclusion?: WorkflowRunConclusion;
+  event?: string;
+  /** Omitted for a workflow that has never run on the default branch. */
+  ranHoursAgo?: number;
+  commit?: string;
+  actor?: string;
+}
+
+/**
+ * Chosen to populate every state the Actions view can show, including the ones
+ * that are easy to get wrong: a run still going, a run that was cancelled
+ * rather than failed, and a workflow that exists but has never run on the
+ * default branch. A seed where everything is green or red proves nothing about
+ * the orderings this page depends on.
+ */
+const SEED_WORKFLOWS: SeedWorkflow[] = [
+  {
+    repo: "platform-api",
+    name: "CI",
+    path: ".github/workflows/ci.yml",
+    conclusion: "failure",
+    ranHoursAgo: 1,
+    commit: "fix(billing): stop rounding proration twice",
+    actor: "marcus-t",
+  },
+  {
+    repo: "platform-api",
+    name: "Nightly integration",
+    path: ".github/workflows/nightly.yml",
+    conclusion: "timed_out",
+    event: "schedule",
+    ranHoursAgo: 9,
+    commit: "chore(deps): bump pg to 8.16.3",
+  },
+  {
+    repo: "platform-api",
+    name: "CodeQL",
+    path: ".github/workflows/codeql.yml",
+    conclusion: "success",
+    event: "schedule",
+    ranHoursAgo: 20,
+  },
+  {
+    repo: "web-client",
+    name: "CI",
+    path: ".github/workflows/ci.yml",
+    status: "in_progress",
+    ranHoursAgo: 0,
+    commit: "feat(web): group pull requests by repository",
+    actor: "priya-n",
+  },
+  {
+    repo: "web-client",
+    name: "Preview deploy",
+    path: ".github/workflows/preview.yml",
+    conclusion: "success",
+    ranHoursAgo: 2,
+    actor: "priya-n",
+  },
+  {
+    repo: "design-system",
+    name: "CI",
+    path: ".github/workflows/ci.yml",
+    conclusion: "success",
+    ranHoursAgo: 6,
+    commit: "feat(tokens): add motion-reduce variants",
+    actor: "sam-quinn",
+  },
+  {
+    repo: "design-system",
+    name: "Publish",
+    path: ".github/workflows/publish.yml",
+    conclusion: "cancelled",
+    event: "workflow_dispatch",
+    ranHoursAgo: 30,
+    actor: "adaeze-o",
+  },
+  {
+    repo: "infra-terraform",
+    name: "Plan",
+    path: ".github/workflows/plan.yml",
+    conclusion: "success",
+    ranHoursAgo: 14,
+    commit: "feat(infra): move the worker to a scheduled job",
+    actor: "tobias-r",
+  },
+  {
+    repo: "infra-terraform",
+    name: "Drift check",
+    path: ".github/workflows/drift.yml",
+  },
+];
 
 const avatar = (login: string) =>
   `https://avatars.githubusercontent.com/u/${(login.length * 7919) % 90000}?v=4`;
@@ -408,6 +509,7 @@ async function seed(): Promise<void> {
       isPrivate: repo.private,
       isArchived: false,
       url: `https://github.com/acme-industries/${repo.name}`,
+      defaultBranch: repo.defaultBranch,
       installationId,
       syncedAt: seededAt,
     };
@@ -544,6 +646,47 @@ async function seed(): Promise<void> {
     }
   }
 
+  // --- workflows, with their latest default-branch run ------------------
+  let workflowId = 7_000;
+
+  for (const spec of SEED_WORKFLOWS) {
+    workflowId++;
+    const repositoryId = repoIdByName.get(spec.repo)!;
+    const ran = spec.ranHoursAgo === undefined ? null : hoursAgo(spec.ranHoursAgo);
+    const actor = spec.actor ?? PEOPLE[workflowId % PEOPLE.length]!;
+
+    const values = {
+      repositoryId,
+      name: spec.name,
+      path: spec.path,
+      runId: ran ? 90_000_000 + workflowId : null,
+      runNumber: ran ? 40 + (workflowId % 300) : null,
+      runAttempt: ran ? 1 : null,
+      status: ran ? (spec.status ?? "completed") : null,
+      conclusion: ran ? (spec.conclusion ?? null) : null,
+      event: ran ? (spec.event ?? "push") : null,
+      branch: ran ? (REPOS.find((r) => r.name === spec.repo)?.defaultBranch ?? null) : null,
+      headSha: ran ? `${workflowId}abc9f2e51d7b4c6a8e0f3d2b1a4c5e6f7089ab` : null,
+      headCommitMessage: ran ? (spec.commit ?? null) : null,
+      actorLogin: ran ? actor : null,
+      actorAvatarUrl: ran ? avatar(actor) : null,
+      runUrl: ran
+        ? `https://github.com/acme-industries/${spec.repo}/actions/runs/${90_000_000 + workflowId}`
+        : null,
+      runStartedAt: ran,
+      runUpdatedAt: ran,
+      syncedAt: seededAt,
+    };
+
+    await db()
+      .insert(repositoryWorkflows)
+      .values({ githubWorkflowId: workflowId, ...values })
+      .onConflictDoUpdate({
+        target: [repositoryWorkflows.repositoryId, repositoryWorkflows.githubWorkflowId],
+        set: values,
+      });
+  }
+
   // --- a successful sync run, so the UI has something to report ---------
   // Cleared first: sync runs are append-only in normal operation, so without
   // this a re-seed would leave the previous run as the most recent one and the
@@ -563,8 +706,21 @@ async function seed(): Promise<void> {
     rateLimitResetAt: new Date(NOW + 41 * 60_000),
   });
 
+  // A separate run for Actions, because it is a separate job: without this the
+  // view would report "never synced" while showing workflow rows. No rate
+  // limit figures — the Actions sync is REST, whose budget is not the GraphQL
+  // one the refresh gauge reports.
+  await db().insert(syncRuns).values({
+    installationId,
+    kind: "installation_workflow_runs",
+    status: "succeeded",
+    startedAt: seededAt,
+    finishedAt: new Date(seededAt.getTime() + 1_900),
+    itemsSynced: SEED_WORKFLOWS.length,
+  });
+
   console.log(
-    `Seeded ${SEED_PRS.length} pull requests across ${REPOS.length} repositories for "${LOGIN}".`,
+    `Seeded ${SEED_PRS.length} pull requests and ${SEED_WORKFLOWS.length} workflows across ${REPOS.length} repositories for "${LOGIN}".`,
   );
 }
 

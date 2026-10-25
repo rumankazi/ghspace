@@ -28,7 +28,7 @@ import type { PullRequestNode } from "../github/pull-request-fields.ts";
 import { log, timed } from "../lib/logger.ts";
 import { recomputeInvolvement } from "./involvement.ts";
 import { upsertRepositories } from "./repositories.ts";
-import { failRun } from "./runs.ts";
+import { failRun, startInstallationRun } from "./runs.ts";
 
 export const INSTALLATION_SYNC_KIND = "installation_pull_requests";
 
@@ -68,25 +68,11 @@ export async function syncInstallation(
 ): Promise<InstallationSyncOutcome> {
   const startedAt = new Date();
 
-  const [installation] = await db()
-    .select()
-    .from(installations)
-    .where(eq(installations.id, installationRowId))
-    .limit(1);
-
-  if (!installation) throw new Error(`No installation ${installationRowId}`);
-
-  const [run] = await db()
-    .insert(syncRuns)
-    .values({
-      installationId: installation.id,
-      kind: INSTALLATION_SYNC_KIND,
-      status: "running",
-      startedAt,
-    })
-    .returning({ id: syncRuns.id });
-
-  const syncRunId = run!.id;
+  const { installation, syncRunId } = await startInstallationRun(
+    installationRowId,
+    INSTALLATION_SYNC_KIND,
+    startedAt,
+  );
 
   try {
     if (installation.suspendedAt) {

@@ -29,8 +29,8 @@ export function LoadingLabel({ children }: { children: string }) {
 export function AppNavSkeleton() {
   return (
     <div className="mb-6 flex flex-wrap items-center gap-x-3 gap-y-3">
-      {/* The view switcher: two tabs inside a p-1 pill. */}
-      <Skeleton className="mr-auto h-9 w-52 rounded-lg" />
+      {/* The view switcher: three tabs inside a p-1 pill. */}
+      <Skeleton className="mr-auto h-9 w-72 rounded-lg" />
       {/* The refresh button, its budget gauge, and the age beside it. */}
       <Skeleton className="size-8 rounded-full" />
       <Skeleton className="h-3.5 w-16" />
@@ -112,6 +112,54 @@ export function RepositorySectionSkeleton({ rows }: { rows: number }) {
         <Skeleton className="h-3 w-4" />
       </div>
       <PullRequestRowsSkeleton rows={rows} />
+    </div>
+  );
+}
+
+/** One workflow row: icon, name and run number, then a line of run detail. */
+function WorkflowRowSkeleton({ index }: { index: number }) {
+  return (
+    <li className="flex items-baseline gap-3 px-4 py-2.5">
+      <Skeleton className="mt-0.5 size-3.5 shrink-0 rounded-full" />
+
+      <div className="min-w-0 flex-1">
+        <div className="flex h-5 items-center">
+          <Skeleton className={cn("h-3.5", TITLE_WIDTHS[index % TITLE_WIDTHS.length])} />
+        </div>
+        <div className="mt-0.5 flex h-4 items-center">
+          <Skeleton className="h-3 w-1/2" />
+        </div>
+      </div>
+
+      <Skeleton className="hidden size-5 shrink-0 rounded-full sm:block" />
+    </li>
+  );
+}
+
+/**
+ * Stands in for a `RepositoryWorkflowsSection`.
+ *
+ * `rows: 0` is the shut case, which is the common one — only a repository with
+ * something failing or running opens — so the placeholder has to be able to
+ * show a bare heading rather than always implying open rows.
+ */
+export function WorkflowSectionSkeleton({ rows }: { rows: number }) {
+  return (
+    <div className="border-border bg-card overflow-hidden rounded-lg border">
+      <div className={cn("flex h-11 items-center gap-2.5 px-4", rows > 0 && "border-border border-b")}>
+        <Skeleton className="size-3.5 shrink-0" />
+        <Skeleton className="h-3.5 w-44" />
+        <Skeleton className="h-3 w-16" />
+        <Skeleton className="ml-auto h-3 w-12" />
+      </div>
+
+      {rows > 0 ? (
+        <ul className="divide-border divide-y">
+          {Array.from({ length: rows }, (_, index) => (
+            <WorkflowRowSkeleton key={index} index={index} />
+          ))}
+        </ul>
+      ) : null}
     </div>
   );
 }

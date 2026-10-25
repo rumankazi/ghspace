@@ -5,6 +5,7 @@ import {
   listInstallationsForSync,
   reapInterruptedRuns,
   syncInstallation,
+  syncInstallationActions,
   syncUserAccess,
 } from "@ghspace/core/sync";
 
@@ -20,6 +21,11 @@ import {
  *   - **Access sync** refreshes which repositories each user may see. It runs
  *     rarely, spends that user's personal rate limit, and exists to enforce a
  *     security boundary rather than to keep data fresh.
+ *
+ * The Actions sync rides along with the installation cycle rather than having a
+ * schedule of its own — workflow state goes stale at the same rate pull request
+ * state does — but it is recorded as a separate run, because it needs a
+ * separate GitHub permission and must be able to fail on its own.
  *
  * Everything the dashboard shows is written here, which is what lets the web app
  * read purely from Postgres.
@@ -55,6 +61,7 @@ async function syncAllInstallations(): Promise<void> {
 
     let succeeded = 0;
     let failed = 0;
+    let actionsFailed = 0;
 
     // Sequential on purpose. Each installation has its own rate limit budget so
     // there is no shared quota to race over, but serialising keeps concurrent
@@ -72,12 +79,28 @@ async function syncAllInstallations(): Promise<void> {
           error: error instanceof Error ? error.message : String(error),
         });
       }
+
+      if (shuttingDown) break;
+
+      // Separately caught: an account that has not granted the Actions
+      // permission would otherwise look like a broken pull request sync, and
+      // the triage view it feeds is the one people actually open.
+      try {
+        await syncInstallationActions(target.id);
+      } catch (error) {
+        actionsFailed++;
+        log.warn("actions sync failed", {
+          installation: target.accountLogin,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
 
     log.info("pull request cycle complete", {
       installations: targets.length,
       succeeded,
       failed,
+      actionsFailed,
       durationMs: Date.now() - startedAt,
     });
   } catch (error) {

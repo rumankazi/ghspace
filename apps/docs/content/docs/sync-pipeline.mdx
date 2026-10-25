@@ -102,6 +102,31 @@ unused by the main path, as the recovery route for both. It costs a user's own
 rate limit per user, which is exactly what the installation-first design avoids
 — so it is a deliberate trade to make later, if these signals prove to matter.
 
+## Actions sync
+
+`syncInstallationActions()` runs straight after the installation sync, on the
+same schedule, but is **recorded as its own sync run**. Two reasons, and both
+are about failure: Actions needs the `actions: read` permission that pull
+requests do not, and an account that has not granted it must not make pull
+request triage look broken. The Actions view reads that run's state, so a
+missing permission reads as an error on the page that depends on it.
+
+Repositories come from the cache rather than from a fresh listing — the pull
+request sync has just written them. Each one costs two REST requests: the
+workflow listing, which is what makes a workflow that has *never* run visible
+at all, and one page of default-branch runs, from which the newest run per
+workflow is kept.
+
+REST rather than GraphQL, because GraphQL exposes check suites, and a check
+suite has no workflow identity, no run number and no `workflow_dispatch` event.
+A roll-up built from it could not say which workflow is red.
+
+Two limits are deliberate and logged rather than hidden. A repository whose
+busiest workflow fills the single page of runs can leave a quiet workflow
+reporting as never-run, which the sync warns about; and a repository ghspace
+cannot read Actions in is skipped individually, keeping the rows it already had,
+because a 403 from one repository is no evidence that its workflows are gone.
+
 ## Access sync
 
 `syncUserAccess()` runs on its own, slower schedule. It calls

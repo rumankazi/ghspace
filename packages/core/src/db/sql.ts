@@ -10,3 +10,14 @@ import { sql } from "drizzle-orm";
 export function sqlExcluded(column: string) {
   return sql.raw(`excluded."${column}"`);
 }
+
+/**
+ * The incoming value, or the stored one when the incoming value is null.
+ *
+ * For a column that only some writers know about. A listing that omits the
+ * field would otherwise erase what a listing that carries it already wrote,
+ * and the erasure is invisible: the column is nullable either way.
+ */
+export function sqlExcludedOrKeep(table: string, column: string) {
+  return sql.raw(`coalesce(excluded."${column}", "${table}"."${column}")`);
+}

@@ -14,19 +14,31 @@ users ─┬─ github_credentials        encrypted user tokens
        ├─ user_repository_access    ★ the security boundary
        └─ pull_request_involvement  why this user cares about a PR
 
-installations ── repositories ── pull_requests ─┬─ pull_request_reviews
-                                                ├─ pull_request_review_requests
-                                                └─ pull_request_assignees
+installations ── repositories ─┬─ pull_requests ─┬─ pull_request_reviews
+                               │                  ├─ pull_request_review_requests
+                               │                  └─ pull_request_assignees
+                               └─ repository_workflows   latest default-branch run
 
 sync_runs        one row per sync attempt, user- or installation-scoped
 ```
+
+## `repository_workflows`
+
+One row per active workflow per repository, carrying its **most recent run on
+the default branch** — not a run history. The question the Actions view answers
+is whether the default branch is healthy now, and keeping every run would turn
+the sweep into a retention policy.
+
+A workflow with no run on that branch is stored with the run columns null. That
+state is real, and leaving the row out would make it indistinguishable from a
+sync that never reached the repository.
 
 ## Shared versus tenant-scoped
 
 This distinction drives everything.
 
-**Shared** — `installations`, `repositories`, `pull_requests`, and the three
-pull request child tables. Keyed by GitHub's own node ids and deduplicated
+**Shared** — `installations`, `repositories`, `pull_requests`,
+`repository_workflows`, and the three pull request child tables. Keyed by GitHub's own node ids and deduplicated
 globally. If two ghspace users can see the same pull request, it is stored once
 and refreshed once. This is what makes one installation sync serve a whole
 organisation.

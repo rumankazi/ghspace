@@ -11,3 +11,5 @@ export * from "./involvement.ts";
 export * from "./repositories.ts";
 
 export * from "./installation-sync.ts";
+
+export * from "./actions-sync.ts";

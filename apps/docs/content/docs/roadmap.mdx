@@ -6,6 +6,7 @@ description: What exists, what is next, and what is deliberately deferred.
 ## Built
 
 - Pull request triage across installed accounts, sorted into action buckets
+- Actions status across every visible repository, failing repositories first
 - Browse view with repository, author, involvement, draft and title filters
 - Installation coverage panel, so missing organisations read as a setting
 - Per-user access enforcement
@@ -22,8 +23,11 @@ as reconciliation, because webhooks are unreliable by nature.
 on you*; see [Sync pipeline](/docs/sync-pipeline#what-this-model-cannot-see).
 Fixing it needs `GET /user/teams` and the organisation members read permission.
 
-**GitHub Actions.** Workflow runs per repository. The repo-wide sync already
-fetches check rollups, so a good deal of the groundwork exists.
+**Actions beyond the default branch.** The Actions view reports the latest run
+of each workflow on the default branch and keeps no history, which answers "is
+`main` healthy" and nothing else. A run history per workflow, or runs on release
+branches, would need a retention policy — the one decision the current shape
+avoids having to make.
 
 ## Deferred
 
